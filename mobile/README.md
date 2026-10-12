@@ -5,14 +5,22 @@ Expo React Native client for personalized 5-minute mindfulness meditations.
 ## Run
 
 ```bash
+cp .env.example .env   # add Supabase URL + publishable key
 npm install
 npx expo start
 ```
 
-## Phase 1 notes
+## Phase 2 notes
 
-- Design tokens: `src/theme/tokens.ts`
-- App name: `src/constants/brand.ts`
-- Meditation duration (300s target): `src/constants/meditation.ts`
-- Mock journey state: `src/context/AppStateContext.tsx`
-- No Supabase / OpenAI / Trigger.dev calls yet
+- Auth: `src/providers/AuthProvider.tsx`, `src/services/auth.ts`
+- Supabase client: `src/lib/supabase.ts` (SQLite localStorage session persistence)
+- Check-ins: `src/services/checkins.ts` → `daily_checkins`
+- Duration config: `src/constants/meditation.ts` (300s)
+- Setup guide: `../docs/PHASE2_SUPABASE_SETUP.md`
+
+## Scripts
+
+```bash
+npm run typecheck
+node scripts/validate-checkin.mjs
+```

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { BreathingCircle } from '@/components/ui/BreathingCircle';
@@ -20,60 +20,52 @@ const FLOW: MeditationStatus[] = [
   'ready',
 ];
 
+/**
+ * Phase 2: generation UI is simulated locally.
+ * Check-ins are persisted; fake "ready" meditations are NOT written to Supabase.
+ */
 export default function GenerationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { meditations, updateMeditationStatus, markMeditationReady } = useAppState();
-  const meditation = useMemo(
-    () => meditations.find((item) => item.id === id),
-    [meditations, id],
-  );
+  const {
+    updateMeditationStatus,
+    markMeditationReady,
+    getLocalGenerationStatus,
+    generationMode,
+  } = useAppState();
   const [failed, setFailed] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
-  useEffect(() => {
-    if (!meditation || failed) return;
+  const status =
+    (id ? getLocalGenerationStatus(id) : undefined) ??
+    (failed ? 'failed' : FLOW[stepIndex]);
 
-    if (meditation.status === 'ready') {
-      const timer = setTimeout(() => {
-        router.replace(`/player/${meditation.id}`);
-      }, 700);
-      return () => clearTimeout(timer);
-    }
+  useEffect(() => {
+    if (!id || failed || generationMode !== 'simulated') return;
+    if (status === 'ready') return;
 
     const timer = setTimeout(() => {
       const next = Math.min(stepIndex + 1, FLOW.length - 1);
       setStepIndex(next);
-      const status = FLOW[next];
-      if (status === 'ready') {
-        markMeditationReady(meditation.id);
+      const nextStatus = FLOW[next];
+      if (nextStatus === 'ready') {
+        markMeditationReady(id);
       } else {
-        updateMeditationStatus(meditation.id, status);
+        updateMeditationStatus(id, nextStatus);
       }
     }, 1600);
 
     return () => clearTimeout(timer);
   }, [
     failed,
+    generationMode,
+    id,
     markMeditationReady,
-    meditation,
-    router,
+    status,
     stepIndex,
     updateMeditationStatus,
   ]);
 
-  if (!meditation) {
-    return (
-      <Screen scroll={false}>
-        <Text variant="title" color={colors.forest}>
-          Meditation not found
-        </Text>
-        <Button label="Go Home" onPress={() => router.replace('/(tabs)')} style={styles.cta} />
-      </Screen>
-    );
-  }
-
-  const status = failed ? 'failed' : meditation.status;
   const message = GENERATION_MESSAGES[status] ?? 'Creating your moment of calm…';
 
   return (
@@ -92,8 +84,13 @@ export default function GenerationScreen() {
       <Text variant="subtitle" color={colors.charcoalMuted} align="center">
         {message}
       </Text>
-      <Text variant="caption" color={colors.charcoalMuted} align="center" style={styles.hint}>
-        You can leave this screen — generation continues in the background (mocked for Phase 1).
+      <Text
+        variant="caption"
+        color={colors.charcoalMuted}
+        align="center"
+        style={styles.hint}>
+        Your check-in is saved. Audio generation is simulated in Phase 2 — real
+        meditations arrive in Phase 3.
       </Text>
 
       <View style={styles.actions}>
@@ -104,7 +101,7 @@ export default function GenerationScreen() {
               onPress={() => {
                 setFailed(false);
                 setStepIndex(0);
-                updateMeditationStatus(meditation.id, 'pending');
+                if (id) updateMeditationStatus(id, 'pending');
               }}
             />
             <Button
@@ -115,17 +112,24 @@ export default function GenerationScreen() {
           </>
         ) : (
           <>
-            <Button
-              label="Continue in Library"
-              variant="secondary"
-              onPress={() => router.replace('/(tabs)/library')}
-            />
+            {status === 'ready' ? (
+              <Button
+                label="Done — go to Library"
+                onPress={() => router.replace('/(tabs)/library')}
+              />
+            ) : (
+              <Button
+                label="Continue in Library"
+                variant="secondary"
+                onPress={() => router.replace('/(tabs)/library')}
+              />
+            )}
             <Button
               label="Simulate failure"
               variant="ghost"
               onPress={() => {
                 setFailed(true);
-                updateMeditationStatus(meditation.id, 'failed');
+                if (id) updateMeditationStatus(id, 'failed');
               }}
             />
           </>
@@ -151,14 +155,11 @@ const styles = StyleSheet.create({
   },
   hint: {
     marginTop: spacing.md,
-    maxWidth: 300,
+    maxWidth: 320,
   },
   actions: {
     width: '100%',
     gap: spacing.sm,
     marginTop: spacing.xl,
-  },
-  cta: {
-    marginTop: spacing.lg,
   },
 });

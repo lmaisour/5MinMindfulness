@@ -15,6 +15,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppStateProvider } from '@/context/AppStateContext';
+import { AuthProvider } from '@/providers/AuthProvider';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
@@ -43,28 +44,30 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AppStateProvider>
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.ivory },
-            animation: 'fade',
-          }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="sign-in/index" options={{ presentation: 'modal' }} />
-          <Stack.Screen
-            name="check-in"
-            options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
-          />
-          <Stack.Screen name="generation/[id]" options={{ gestureEnabled: false }} />
-          <Stack.Screen
-            name="player/[id]"
-            options={{ animation: 'fade', gestureEnabled: true }}
-          />
-        </Stack>
-      </AppStateProvider>
+      <AuthProvider>
+        <AppStateProvider>
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.ivory },
+              animation: 'fade',
+            }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="sign-in/index" options={{ presentation: 'modal' }} />
+            <Stack.Screen
+              name="check-in"
+              options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+            />
+            <Stack.Screen name="generation/[id]" options={{ gestureEnabled: false }} />
+            <Stack.Screen
+              name="player/[id]"
+              options={{ animation: 'fade', gestureEnabled: true }}
+            />
+          </Stack>
+        </AppStateProvider>
+      </AuthProvider>
     </GestureHandlerRootView>
   );
 }

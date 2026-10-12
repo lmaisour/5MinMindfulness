@@ -1,0 +1,17 @@
+# Minimal Supabase CLI project config.
+# Link with: supabase link --project-ref YOUR_PROJECT_REF
+
+project_id = "5minmindfulness"
+
+[api]
+enabled = true
+
+[db]
+major_version = 15
+
+[auth]
+enabled = true
+enable_anonymous_sign_ins = true
+
+[functions.delete-account]
+verify_jwt = true

@@ -6,15 +6,18 @@ A meditation made for you, based on how you feel today.
 
 ## Status
 
-**Phase 1 complete (frontend mock):** Expo React Native app with polished navigation through welcome → check-in → generation → player, plus Home / Library / Insights / Profile.
-
-Phases 2–7 (Supabase, Trigger.dev, OpenAI, real audio, analytics) are intentionally not started.
+| Phase | Status |
+| --- | --- |
+| Phase 1 — Mobile UI | Complete |
+| Phase 2 — Auth + Database | Implemented in code (requires your Supabase project config) |
+| Phase 3+ — AI audio | Not started |
 
 ## Project layout
 
 ```
-docs/                 Architecture plan, duration specs, env checklist
+docs/                 Plans, setup guides, generation specs
 mobile/               Expo SDK 57 + TypeScript + Expo Router app
+supabase/             SQL migrations, Edge Functions, RLS tests
 ```
 
 ## Meditation duration
@@ -25,23 +28,18 @@ Single source of truth: `mobile/src/constants/meditation.ts`
 | --- | --- |
 | Target duration | 300 seconds (5 minutes) |
 | Acceptable range | 285–315 seconds |
-| Structure | See `docs/MEDITATION_GENERATION.md` |
 
 ## Launch locally
+
+1. Configure Supabase — see `docs/PHASE2_SUPABASE_SETUP.md`
+2. Create `mobile/.env` from `mobile/.env.example`
+3. Apply migrations in `supabase/migrations/`
+4. Run:
 
 ```bash
 cd mobile
 npm install
 npx expo start
-```
-
-Then press `i` (iOS simulator), `a` (Android emulator), or scan the QR code with Expo Go.
-
-Web preview:
-
-```bash
-cd mobile
-npx expo start --web
 ```
 
 Typecheck:
@@ -51,21 +49,17 @@ cd mobile
 npx tsc --noEmit
 ```
 
-## Working mock flows
+## Phase 2 highlights
 
-1. Welcome → Create My Meditation / Sign In / Explore
-2. Home → Begin Check-In
-3. Check-in steps: name → mood → energy → intention → notes → review
-4. Generation screen with status-linked breathing UI
-5. Immersive player (simulated playback)
-6. Library (replay, download toggle, delete)
-7. Insights (practice / mood / energy / intentions)
-8. Profile (privacy copy, preference toggles, mock account linking)
+- Anonymous auth on “Create My Meditation”
+- Email OTP, Google OAuth, Apple (iOS) sign-in
+- Anonymous → permanent account linking (requires Manual linking in Supabase)
+- `daily_checkins` persistence with RLS
+- Profile preferences in `user_preferences`
+- Library / Insights read real user data (empty until Phase 3 generation)
+- Simulated generation UI does **not** insert fake ready meditations
+- Account deletion via `supabase/functions/delete-account`
 
 ## Next step
 
-**Phase 2 — Authentication & Database**
-
-- Supabase anonymous / Apple / Google / email auth
-- Account linking for guests
-- Migrations + RLS for profiles, check-ins, meditations
+**Phase 3 — AI meditation generation** (Trigger.dev + OpenAI structured scripts)

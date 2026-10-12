@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,12 +9,39 @@ import { OrganicBackdrop } from '@/components/ui/OrganicBackdrop';
 import { Button } from '@/components/ui/Button';
 import { Text } from '@/components/ui/Text';
 import { APP_NAME, APP_TAGLINE } from '@/constants/brand';
+import { isSupabaseConfigured } from '@/lib/env';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { useAuth } from '@/providers/AuthProvider';
 import { colors, spacing } from '@/theme/tokens';
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const auth = useAuth();
   const reduceMotion = useReducedMotion();
+  const [starting, setStarting] = useState(false);
+
+  const startMeditation = async () => {
+    if (!isSupabaseConfigured()) {
+      Alert.alert(
+        'Supabase not configured',
+        'Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY to continue.',
+      );
+      return;
+    }
+
+    setStarting(true);
+    try {
+      await auth.ensureAnonymous();
+      router.push('/check-in/name');
+    } catch (error) {
+      Alert.alert(
+        'Unable to start',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setStarting(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -54,8 +82,9 @@ export default function WelcomeScreen() {
           entering={reduceMotion ? undefined : FadeInUp.delay(220).duration(700)}
           style={styles.actions}>
           <Button
-            label="Create My Meditation"
-            onPress={() => router.push('/check-in/name')}
+            label={starting ? 'Starting…' : 'Create My Meditation'}
+            onPress={() => void startMeditation()}
+            disabled={starting || auth.initializing}
           />
           <Button
             label="Sign In"

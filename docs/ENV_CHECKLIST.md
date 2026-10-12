@@ -1,15 +1,22 @@
-# Environment & credentials checklist (future phases)
+# Environment & credentials checklist
 
-Do not commit secrets. Mobile app receives only public anon keys / publishable tokens.
+Do not commit secrets. Mobile app receives only public publishable/anon keys.
 
-## Supabase (Phase 2+)
+## Mobile (Phase 2+)
 
-- `EXPO_PUBLIC_SUPABASE_URL`
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (Edge Functions / workers only)
-- Apple Sign In: Services ID, key, team ID
-- Google Sign In: iOS/Android OAuth client IDs
-- Storage bucket for private meditation audio
+| Variable | Where | Notes |
+| --- | --- | --- |
+| `EXPO_PUBLIC_SUPABASE_URL` | `mobile/.env` | Project URL |
+| `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `mobile/.env` | Publishable or anon key |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | optional alias | Accepted by client if publishable key unset |
+
+## Supabase Edge Functions (server only)
+
+| Variable | Notes |
+| --- | --- |
+| `SUPABASE_URL` | Injected by Supabase runtime |
+| `SUPABASE_ANON_KEY` | Injected by Supabase runtime |
+| `SUPABASE_SERVICE_ROLE_KEY` | Set via `supabase secrets set` — never ship to mobile |
 
 ## OpenAI (Phase 3–4)
 
@@ -32,3 +39,5 @@ Do not commit secrets. Mobile app receives only public anon keys / publishable t
 
 - EAS project ID
 - Apple Developer / Google Play credentials for production builds
+- Sign in with Apple capability
+- Google OAuth client IDs

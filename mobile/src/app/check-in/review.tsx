@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { CheckInShell } from '@/components/check-in/CheckInShell';
 import { Button } from '@/components/ui/Button';
@@ -10,11 +11,23 @@ import { colors, radii, spacing } from '@/theme/tokens';
 
 export default function CheckInReviewScreen() {
   const router = useRouter();
-  const { draft, createMeditationFromDraft } = useAppState();
+  const { draft, submitCheckInAndStartGeneration, submittingCheckIn } = useAppState();
+  const [busy, setBusy] = useState(false);
 
-  const create = () => {
-    const meditation = createMeditationFromDraft();
-    router.replace(`/generation/${meditation.id}`);
+  const create = async () => {
+    if (busy || submittingCheckIn) return;
+    setBusy(true);
+    try {
+      const { localId } = await submitCheckInAndStartGeneration();
+      router.replace(`/generation/${localId}`);
+    } catch (error) {
+      Alert.alert(
+        'Could not save check-in',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -24,8 +37,17 @@ export default function CheckInReviewScreen() {
       supporting={`We’ll create a ${MEDITATION_DURATION.label} meditation from what you’ve shared.`}
       footer={
         <View style={styles.footer}>
-          <Button label="Create My Meditation" onPress={create} />
-          <Button label="Edit responses" variant="ghost" onPress={() => router.back()} />
+          <Button
+            label={busy || submittingCheckIn ? 'Saving…' : 'Create My Meditation'}
+            onPress={() => void create()}
+            disabled={busy || submittingCheckIn}
+          />
+          <Button
+            label="Edit responses"
+            variant="ghost"
+            onPress={() => router.back()}
+            disabled={busy || submittingCheckIn}
+          />
         </View>
       }>
       <View style={styles.summary}>

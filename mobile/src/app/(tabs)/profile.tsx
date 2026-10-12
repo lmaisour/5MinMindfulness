@@ -1,20 +1,42 @@
 import { useRouter } from 'expo-router';
-import { Switch, StyleSheet, View } from 'react-native';
-import { useState } from 'react';
+import { Alert, Switch, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Text } from '@/components/ui/Text';
 import { APP_NAME } from '@/constants/brand';
-import { useAppState } from '@/context/AppStateContext';
+import { useAuth } from '@/providers/AuthProvider';
 import { colors, radii, spacing } from '@/theme/tokens';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { profile, setGuestLinked } = useAppState();
-  const [personalization, setPersonalization] = useState(profile.personalizationEnabled);
-  const [notifications, setNotifications] = useState(profile.notificationsEnabled);
+  const auth = useAuth();
+
+  const onDelete = () => {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your account, check-ins, and related data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void auth
+              .deleteAccount()
+              .then(() => router.replace('/'))
+              .catch((error: unknown) =>
+                Alert.alert(
+                  'Deletion failed',
+                  error instanceof Error ? error.message : 'Please try again.',
+                ),
+              );
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <Screen>
@@ -28,34 +50,53 @@ export default function ProfileScreen() {
           Signed in as
         </Text>
         <Text variant="title" color={colors.forest} style={styles.name}>
-          {profile.displayName || (profile.isGuest ? 'Guest' : 'Member')}
+          {auth.displayName ||
+            (auth.isAnonymous ? 'Guest' : auth.email || 'Member')}
         </Text>
         <Text variant="body" color={colors.charcoalMuted}>
-          {profile.isGuest
+          {auth.isAnonymous
             ? 'You’re exploring as a guest. Create an account to keep your meditations across devices.'
-            : 'Your meditation history is linked to your account.'}
+            : auth.email
+              ? `Signed in with ${auth.email}`
+              : 'Your meditation history is linked to your account.'}
         </Text>
-        {profile.isGuest ? (
+        {auth.isAnonymous || !auth.user ? (
           <Button
             label="Create Account / Sign In"
             onPress={() => router.push('/sign-in')}
             style={styles.cta}
           />
-        ) : null}
+        ) : (
+          <Button
+            label="Sign out"
+            variant="secondary"
+            onPress={() =>
+              void auth.signOut().then(() => router.replace('/')).catch((error) =>
+                Alert.alert(
+                  'Sign out failed',
+                  error instanceof Error ? error.message : 'Please try again.',
+                ),
+              )
+            }
+            style={styles.cta}
+          />
+        )}
       </View>
 
       <View style={styles.panel}>
         <Row
           title="Historical personalization"
           body="Use past preferences to gently inform future meditations. Private notes stay excluded unless you choose otherwise later."
-          value={personalization}
-          onChange={setPersonalization}
+          value={auth.personalizationEnabled}
+          onChange={(value) => void auth.setPersonalizationEnabled(value)}
+          disabled={!auth.user}
         />
         <Row
           title="Reminders"
-          body="Occasional gentle reminders. Off by default in this mock build."
-          value={notifications}
-          onChange={setNotifications}
+          body="Occasional gentle reminders."
+          value={auth.notificationsEnabled}
+          onChange={(value) => void auth.setNotificationsEnabled(value)}
+          disabled={!auth.user}
         />
       </View>
 
@@ -68,13 +109,9 @@ export default function ProfileScreen() {
           stay private to your account. Analytics never include journal text or raw mood
           disclosures.
         </Text>
-        <Button
-          label="Simulate account linking"
-          variant="secondary"
-          onPress={setGuestLinked}
-          style={styles.cta}
-        />
-        <Button label="Request data deletion" variant="danger" onPress={() => {}} />
+        {auth.user ? (
+          <Button label="Delete my account" variant="danger" onPress={onDelete} />
+        ) : null}
       </View>
     </Screen>
   );
@@ -85,11 +122,13 @@ function Row({
   body,
   value,
   onChange,
+  disabled,
 }: {
   title: string;
   body: string;
   value: boolean;
   onChange: (value: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <View style={styles.row}>
@@ -104,6 +143,7 @@ function Row({
       <Switch
         value={value}
         onValueChange={onChange}
+        disabled={disabled}
         trackColor={{ false: colors.sandDeep, true: colors.sage }}
         thumbColor={colors.ivory}
       />
@@ -139,5 +179,6 @@ const styles = StyleSheet.create({
   },
   privacy: {
     marginTop: spacing.sm,
+    marginBottom: spacing.md,
   },
 });

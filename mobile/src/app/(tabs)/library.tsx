@@ -7,13 +7,20 @@ import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Text } from '@/components/ui/Text';
 import { useAppState } from '@/context/AppStateContext';
+import { useAuth } from '@/providers/AuthProvider';
 import { formatDurationMinutes, formatLongDate } from '@/utils/format';
 import { colors, radii, spacing } from '@/theme/tokens';
 
 export default function LibraryScreen() {
   const router = useRouter();
-  const { meditations, toggleDownload, deleteMeditation, resetDraft } = useAppState();
-  const items = meditations.filter((item) => item.status === 'ready');
+  const auth = useAuth();
+  const {
+    meditations,
+    loadingLibrary,
+    toggleDownload,
+    deleteMeditation,
+    resetDraft,
+  } = useAppState();
 
   return (
     <Screen>
@@ -22,10 +29,19 @@ export default function LibraryScreen() {
         subtitle="Your personalized meditations, ready whenever you need them."
       />
 
-      {items.length === 0 ? (
+      {!auth.configured ? (
+        <EmptyState
+          title="Connect Supabase"
+          body="Configure environment variables to load your personal library."
+        />
+      ) : loadingLibrary ? (
+        <Text variant="body" color={colors.charcoalMuted}>
+          Loading your library…
+        </Text>
+      ) : meditations.length === 0 ? (
         <EmptyState
           title="No meditations yet"
-          body="Begin a check-in to create your first personalized session."
+          body="Your check-ins are saved. Generated audio meditations will appear here in Phase 3."
           actionLabel="Begin Check-In"
           onAction={() => {
             resetDraft();
@@ -33,7 +49,7 @@ export default function LibraryScreen() {
           }}
         />
       ) : (
-        items.map((meditation) => (
+        meditations.map((meditation) => (
           <View key={meditation.id} style={styles.item}>
             <Pressable
               onPress={() => router.push(`/player/${meditation.id}`)}
@@ -71,13 +87,13 @@ export default function LibraryScreen() {
                 onPress={() =>
                   Alert.alert(
                     'Delete meditation?',
-                    'This removes it from your library in this mock experience.',
+                    'This permanently removes it from your account.',
                     [
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Delete',
                         style: 'destructive',
-                        onPress: () => deleteMeditation(meditation.id),
+                        onPress: () => void deleteMeditation(meditation.id),
                       },
                     ],
                   )

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { MeditationRow } from '@/components/home/MeditationRow';
@@ -12,14 +12,31 @@ import { APP_NAME } from '@/constants/brand';
 import { useAppState } from '@/context/AppStateContext';
 import { useGreeting } from '@/hooks/useGreeting';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { useAuth } from '@/providers/AuthProvider';
 import { colors, spacing } from '@/theme/tokens';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const auth = useAuth();
   const { profile, meditations, resetDraft } = useAppState();
   const greeting = useGreeting(profile.displayName);
   const reduceMotion = useReducedMotion();
   const recent = meditations.filter((item) => item.status === 'ready').slice(0, 3);
+
+  const beginCheckIn = async () => {
+    try {
+      if (auth.configured) {
+        await auth.ensureAnonymous();
+      }
+      resetDraft();
+      router.push('/check-in/name');
+    } catch (error) {
+      Alert.alert(
+        'Unable to start check-in',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
+  };
 
   return (
     <Screen>
@@ -42,10 +59,7 @@ export default function HomeScreen() {
           </Text>
           <Button
             label="Begin Check-In"
-            onPress={() => {
-              resetDraft();
-              router.push('/check-in/name');
-            }}
+            onPress={() => void beginCheckIn()}
             style={styles.heroCta}
           />
         </View>
@@ -63,10 +77,7 @@ export default function HomeScreen() {
           title="Your library is waiting"
           body="Your first personalized meditation will appear here after you listen."
           actionLabel="Begin Check-In"
-          onAction={() => {
-            resetDraft();
-            router.push('/check-in/name');
-          }}
+          onAction={() => void beginCheckIn()}
         />
       ) : (
         recent.map((meditation) => (
