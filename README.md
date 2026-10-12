@@ -1,6 +1,8 @@
-# Nura — Personalized AI Mindfulness
+# 5MinMindfulness
 
 A meditation made for you, based on how you feel today.
+
+Mobile product brand in the Phase 1 UI: **Nura**.
 
 ## Status
 
@@ -14,8 +16,6 @@ Phases 2–7 (Supabase, Trigger.dev, OpenAI, real audio, analytics) are intentio
 docs/                 Architecture plan + future env checklist
 mobile/               Expo SDK 57 + TypeScript + Expo Router app
 ```
-
-Brand name for the MVP UI: **Nura**.
 
 ## Launch locally
 
@@ -52,7 +52,7 @@ npx tsc --noEmit
 7. Insights (practice / mood / energy / intentions)
 8. Profile (privacy copy, preference toggles, mock account linking)
 
-## Next step (awaiting approval)
+## Next step
 
 **Phase 2 — Authentication & Database**
 
