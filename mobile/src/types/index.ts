@@ -1,3 +1,5 @@
+import type { MeditationDurationLabel } from '@/constants/meditation';
+
 export type Mood =
   | 'Happy'
   | 'Anxious'
@@ -22,7 +24,7 @@ export type MeditationStatus =
   | 'ready'
   | 'failed';
 
-export type MeditationDuration = '10 minutes';
+export type MeditationDuration = MeditationDurationLabel;
 
 export interface CheckInPayload {
   name?: string;

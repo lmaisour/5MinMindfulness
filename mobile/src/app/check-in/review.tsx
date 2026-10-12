@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { CheckInShell } from '@/components/check-in/CheckInShell';
 import { Button } from '@/components/ui/Button';
 import { Text } from '@/components/ui/Text';
+import { MEDITATION_DURATION } from '@/constants/meditation';
 import { useAppState } from '@/context/AppStateContext';
 import { colors, radii, spacing } from '@/theme/tokens';
 
@@ -20,7 +21,7 @@ export default function CheckInReviewScreen() {
     <CheckInShell
       step="review"
       question="Your moment of calm is ready to begin."
-      supporting="We’ll create a 10-minute meditation from what you’ve shared."
+      supporting={`We’ll create a ${MEDITATION_DURATION.label} meditation from what you’ve shared.`}
       footer={
         <View style={styles.footer}>
           <Button label="Create My Meditation" onPress={create} />
@@ -32,7 +33,7 @@ export default function CheckInReviewScreen() {
         <Row label="Moods" value={draft.moods.join(', ') || '—'} />
         <Row label="Energy" value={`${draft.energyLevel} / 10`} />
         <Row label="Support" value={draft.focus ?? '—'} />
-        <Row label="Duration" value="10 minutes" />
+        <Row label="Duration" value={MEDITATION_DURATION.label} />
         <Row
           label="Notes"
           value={draft.notes?.trim() ? 'Included privately' : 'None'}

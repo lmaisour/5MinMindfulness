@@ -6,6 +6,7 @@ import { BreathingCircle } from '@/components/ui/BreathingCircle';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
+import { APP_NAME } from '@/constants/brand';
 import { GENERATION_MESSAGES } from '@/constants/checkin';
 import { useAppState } from '@/context/AppStateContext';
 import type { MeditationStatus } from '@/types';
@@ -78,7 +79,7 @@ export default function GenerationScreen() {
   return (
     <Screen scroll={false} contentStyle={styles.content}>
       <Text variant="caption" color={colors.forestSoft} style={styles.brand}>
-        Nura
+        {APP_NAME}
       </Text>
       <Text variant="display" color={colors.forest} align="center">
         Creating your moment of calm…

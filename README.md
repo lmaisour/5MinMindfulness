@@ -2,7 +2,7 @@
 
 A meditation made for you, based on how you feel today.
 
-Mobile product brand in the Phase 1 UI: **Nura**.
+**5MinMindfulness** creates personalized **5-minute** guided meditations from a quick emotional check-in.
 
 ## Status
 
@@ -13,9 +13,19 @@ Phases 2–7 (Supabase, Trigger.dev, OpenAI, real audio, analytics) are intentio
 ## Project layout
 
 ```
-docs/                 Architecture plan + future env checklist
+docs/                 Architecture plan, duration specs, env checklist
 mobile/               Expo SDK 57 + TypeScript + Expo Router app
 ```
+
+## Meditation duration
+
+Single source of truth: `mobile/src/constants/meditation.ts`
+
+| Setting | Value |
+| --- | --- |
+| Target duration | 300 seconds (5 minutes) |
+| Acceptable range | 285–315 seconds |
+| Structure | See `docs/MEDITATION_GENERATION.md` |
 
 ## Launch locally
 

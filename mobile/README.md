@@ -1,6 +1,6 @@
-# Nura (mobile)
+# 5MinMindfulness (mobile)
 
-Expo React Native client for the personalized mindfulness app.
+Expo React Native client for personalized 5-minute mindfulness meditations.
 
 ## Run
 
@@ -11,6 +11,8 @@ npx expo start
 
 ## Phase 1 notes
 
-- Design tokens live in `src/theme/tokens.ts`
-- Mock journey state is in `src/context/AppStateContext.tsx`
+- Design tokens: `src/theme/tokens.ts`
+- App name: `src/constants/brand.ts`
+- Meditation duration (300s target): `src/constants/meditation.ts`
+- Mock journey state: `src/context/AppStateContext.tsx`
 - No Supabase / OpenAI / Trigger.dev calls yet

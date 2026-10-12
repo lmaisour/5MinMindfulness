@@ -1,3 +1,4 @@
+import { MEDITATION_DURATION } from '@/constants/meditation';
 import type { InsightsSummary, Meditation, UserProfile } from '@/types';
 
 export const MOCK_PROFILE: UserProfile = {
@@ -13,8 +14,8 @@ export const MOCK_MEDITATIONS: Meditation[] = [
     title: 'Softening After a Long Day',
     intention: 'Stress Relief',
     createdAt: '2026-10-11T19:20:00.000Z',
-    targetDurationSeconds: 600,
-    actualDurationSeconds: 598,
+    targetDurationSeconds: MEDITATION_DURATION.targetSeconds,
+    actualDurationSeconds: 298,
     status: 'ready',
     moods: ['Anxious', 'Tired'],
     energyLevel: 3,
@@ -26,8 +27,8 @@ export const MOCK_MEDITATIONS: Meditation[] = [
     title: 'Quiet Gratitude at Dusk',
     intention: 'Gratitude',
     createdAt: '2026-10-09T18:05:00.000Z',
-    targetDurationSeconds: 600,
-    actualDurationSeconds: 605,
+    targetDurationSeconds: MEDITATION_DURATION.targetSeconds,
+    actualDurationSeconds: 305,
     status: 'ready',
     moods: ['Hopeful', 'Happy'],
     energyLevel: 6,
@@ -38,8 +39,8 @@ export const MOCK_MEDITATIONS: Meditation[] = [
     title: 'Settling Toward Sleep',
     intention: 'Sleep',
     createdAt: '2026-10-07T22:40:00.000Z',
-    targetDurationSeconds: 600,
-    actualDurationSeconds: 612,
+    targetDurationSeconds: MEDITATION_DURATION.targetSeconds,
+    actualDurationSeconds: 312,
     status: 'ready',
     moods: ['Tired'],
     energyLevel: 2,
@@ -49,7 +50,7 @@ export const MOCK_MEDITATIONS: Meditation[] = [
 
 export const MOCK_INSIGHTS: InsightsSummary = {
   totalMeditations: 12,
-  totalMinutesListened: 118,
+  totalMinutesListened: 58,
   sessionsThisWeek: 3,
   moodCounts: {
     Anxious: 5,

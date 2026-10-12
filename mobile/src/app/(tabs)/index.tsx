@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
+import { APP_NAME } from '@/constants/brand';
 import { useAppState } from '@/context/AppStateContext';
 import { useGreeting } from '@/hooks/useGreeting';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -24,7 +25,7 @@ export default function HomeScreen() {
     <Screen>
       <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(500)}>
         <Text variant="caption" color={colors.forestSoft} style={styles.brand}>
-          Nura
+          {APP_NAME}
         </Text>
         <Text variant="display" color={colors.forest} style={styles.greeting}>
           {greeting}

@@ -10,6 +10,10 @@ import { BreathingCircle } from '@/components/ui/BreathingCircle';
 import { Button } from '@/components/ui/Button';
 import { OrganicBackdrop } from '@/components/ui/OrganicBackdrop';
 import { Text } from '@/components/ui/Text';
+import {
+  formatMeditationMinutesLabel,
+  MEDITATION_DURATION,
+} from '@/constants/meditation';
 import { useAppState } from '@/context/AppStateContext';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -22,7 +26,8 @@ export default function PlayerScreen() {
     [meditations, id],
   );
 
-  const duration = meditation?.actualDurationSeconds || 600;
+  const duration =
+    meditation?.actualDurationSeconds || MEDITATION_DURATION.targetSeconds;
   const [isPlaying, setIsPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -99,7 +104,7 @@ export default function PlayerScreen() {
             {meditation.title}
           </Text>
           <Text variant="body" color={colors.sand} align="center">
-            {meditation.intention} · 10 minutes
+            {meditation.intention} · {formatMeditationMinutesLabel()}
           </Text>
         </View>
 

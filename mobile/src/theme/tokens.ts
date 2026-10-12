@@ -1,5 +1,5 @@
 /**
- * Nura design tokens — warm, organic, editorial wellness.
+ * 5MinMindfulness design tokens — warm, organic, editorial wellness.
  * Prefer spacing + typography over decoration.
  */
 export const colors = {

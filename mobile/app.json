@@ -1,19 +1,19 @@
 {
   "expo": {
-    "name": "Nura",
-    "slug": "nura",
+    "name": "5MinMindfulness",
+    "slug": "5minmindfulness",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "nura",
+    "scheme": "fiveminmindfulness",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.nura.mindfulness",
+      "bundleIdentifier": "com.fiveminmindfulness.app",
       "icon": "./assets/expo.icon"
     },
     "android": {
-      "package": "com.nura.mindfulness",
+      "package": "com.fiveminmindfulness.app",
       "adaptiveIcon": {
         "backgroundColor": "#F8F6F1",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

@@ -15,6 +15,7 @@ Do not commit secrets. Mobile app receives only public anon keys / publishable t
 
 - `OPENAI_API_KEY` (backend only)
 - Model IDs for structured script generation and TTS
+- Target meditation audio: 300 seconds (acceptable 285–315); see `docs/MEDITATION_GENERATION.md`
 
 ## Trigger.dev (Phase 3–4)
 

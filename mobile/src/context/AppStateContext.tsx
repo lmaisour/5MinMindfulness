@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 
+import {
+  MEDITATION_DURATION,
+  mockActualDurationSeconds,
+} from '@/constants/meditation';
 import { createMockMeditationTitle, MOCK_MEDITATIONS, MOCK_PROFILE } from '@/data/mock';
 import type {
   CheckInPayload,
@@ -84,7 +88,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           title: createMockMeditationTitle(focus, draft.moods),
           intention: focus,
           createdAt: new Date().toISOString(),
-          targetDurationSeconds: 600,
+          targetDurationSeconds: MEDITATION_DURATION.targetSeconds,
           actualDurationSeconds: 0,
           status: 'pending',
           moods: draft.moods,
@@ -110,7 +114,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               ? {
                   ...item,
                   status: 'ready',
-                  actualDurationSeconds: 600 + Math.floor(Math.random() * 21) - 10,
+                  actualDurationSeconds: mockActualDurationSeconds(),
                 }
               : item,
           ),
@@ -146,7 +150,7 @@ export function draftToPayload(draft: CheckInDraft): CheckInPayload {
     moods: draft.moods,
     energyLevel: draft.energyLevel,
     focus: draft.focus ?? 'Mindfulness',
-    duration: '10 minutes',
+    duration: MEDITATION_DURATION.label,
     notes: draft.notes,
   };
 }

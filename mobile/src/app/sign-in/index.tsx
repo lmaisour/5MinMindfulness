@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
+import { APP_NAME } from '@/constants/brand';
 import { useAppState } from '@/context/AppStateContext';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -19,7 +20,7 @@ export default function SignInScreen() {
   return (
     <Screen>
       <Text variant="caption" color={colors.forestSoft} style={styles.brand}>
-        Nura
+        {APP_NAME}
       </Text>
       <Text variant="display" color={colors.forest} style={styles.title}>
         Keep your calm with you.

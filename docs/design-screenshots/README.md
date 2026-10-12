@@ -2,33 +2,35 @@
 
 Mobile-viewport captures of the Expo web preview (390×844 @2x).
 
+Captured during the Phase 1 mock UI review. Branding and duration labels in these images may still reflect earlier Phase 1 copy; the live app now uses **5MinMindfulness** and **5-minute** meditations.
+
 | Screen | File |
 | --- | --- |
-| Welcome | [nura_welcome.png](./nura_welcome.png) |
-| Home | [nura_home.png](./nura_home.png) |
-| Check-in — name | [nura_checkin_name.png](./nura_checkin_name.png) |
-| Check-in — mood | [nura_checkin_mood.png](./nura_checkin_mood.png) |
-| Check-in — energy | [nura_checkin_energy.png](./nura_checkin_energy.png) |
-| Check-in — intention | [nura_checkin_intention.png](./nura_checkin_intention.png) |
-| Check-in — notes | [nura_checkin_notes.png](./nura_checkin_notes.png) |
-| Check-in — review | [nura_checkin_review.png](./nura_checkin_review.png) |
-| Generation | [nura_generation_creating.png](./nura_generation_creating.png) |
-| Player | [nura_player.png](./nura_player.png) |
-| Library | [nura_library.png](./nura_library.png) |
-| Insights | [nura_insights.png](./nura_insights.png) |
-| Profile | [nura_profile.png](./nura_profile.png) |
-| Sign in | [nura_sign_in.png](./nura_sign_in.png) |
+| Welcome | [welcome.png](./welcome.png) |
+| Home | [home.png](./home.png) |
+| Check-in — name | [checkin_name.png](./checkin_name.png) |
+| Check-in — mood | [checkin_mood.png](./checkin_mood.png) |
+| Check-in — energy | [checkin_energy.png](./checkin_energy.png) |
+| Check-in — intention | [checkin_intention.png](./checkin_intention.png) |
+| Check-in — notes | [checkin_notes.png](./checkin_notes.png) |
+| Check-in — review | [checkin_review.png](./checkin_review.png) |
+| Generation | [generation_creating.png](./generation_creating.png) |
+| Player | [player.png](./player.png) |
+| Library | [library.png](./library.png) |
+| Insights | [insights.png](./insights.png) |
+| Profile | [profile.png](./profile.png) |
+| Sign in | [sign_in.png](./sign_in.png) |
 
-![Welcome](./nura_welcome.png)
+![Welcome](./welcome.png)
 
-![Home](./nura_home.png)
+![Home](./home.png)
 
-![Mood check-in](./nura_checkin_mood.png)
+![Mood check-in](./checkin_mood.png)
 
-![Generation](./nura_generation_creating.png)
+![Generation](./generation_creating.png)
 
-![Player](./nura_player.png)
+![Player](./player.png)
 
-![Library](./nura_library.png)
+![Library](./library.png)
 
-![Insights](./nura_insights.png)
+![Insights](./insights.png)

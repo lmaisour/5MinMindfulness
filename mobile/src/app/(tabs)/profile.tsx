@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Text } from '@/components/ui/Text';
+import { APP_NAME } from '@/constants/brand';
 import { useAppState } from '@/context/AppStateContext';
 import { colors, radii, spacing } from '@/theme/tokens';
 
@@ -63,8 +64,8 @@ export default function ProfileScreen() {
           Privacy & trust
         </Text>
         <Text variant="body" color={colors.charcoalMuted} style={styles.privacy}>
-          Nura is not a substitute for therapy or medical care. Emotional check-ins stay
-          private to your account. Analytics never include journal text or raw mood
+          {APP_NAME} is not a substitute for therapy or medical care. Emotional check-ins
+          stay private to your account. Analytics never include journal text or raw mood
           disclosures.
         </Text>
         <Button

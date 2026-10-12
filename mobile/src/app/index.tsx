@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { OrganicBackdrop } from '@/components/ui/OrganicBackdrop';
 import { Button } from '@/components/ui/Button';
 import { Text } from '@/components/ui/Text';
+import { APP_NAME, APP_TAGLINE } from '@/constants/brand';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -27,11 +28,11 @@ export default function WelcomeScreen() {
         <Animated.View
           entering={reduceMotion ? undefined : FadeInDown.duration(700)}
           style={styles.brandBlock}>
-          <Text variant="brand" color={colors.forest}>
-            Nura
+          <Text variant="brand" color={colors.forest} style={styles.brand}>
+            {APP_NAME}
           </Text>
           <Text variant="caption" color={colors.forestSoft} style={styles.tagline}>
-            Personalized mindfulness
+            {APP_TAGLINE}
           </Text>
         </Animated.View>
 
@@ -85,6 +86,10 @@ const styles = StyleSheet.create({
   },
   brandBlock: {
     marginTop: spacing.xl,
+  },
+  brand: {
+    fontSize: 34,
+    lineHeight: 40,
   },
   tagline: {
     marginTop: spacing.xs,
