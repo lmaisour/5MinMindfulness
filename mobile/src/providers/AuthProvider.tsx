@@ -11,7 +11,9 @@ import type { Session, User } from '@supabase/supabase-js';
 import { isSupabaseConfigured } from '@/lib/env';
 import { getSupabase, startAuthAutoRefresh } from '@/lib/supabase';
 import * as authService from '@/services/auth';
+import type { EmailAuthMode, SendEmailResult } from '@/services/auth';
 import * as profileService from '@/services/profile';
+import * as Linking from 'expo-linking';
 
 interface AuthContextValue {
   configured: boolean;
@@ -26,8 +28,8 @@ interface AuthContextValue {
   refreshProfile: () => Promise<void>;
   ensureAnonymous: () => Promise<Session>;
   signOut: () => Promise<void>;
-  sendEmailOtp: (email: string) => Promise<void>;
-  verifyEmailOtp: (email: string, token: string) => Promise<void>;
+  sendEmailOtp: (email: string) => Promise<SendEmailResult>;
+  verifyEmailOtp: (email: string, token: string, mode: EmailAuthMode) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   updateDisplayName: (name: string) => Promise<void>;
@@ -73,13 +75,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     startAuthAutoRefresh();
     const supabase = getSupabase();
 
-    void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setInitializing(false);
-      if (data.session) {
-        void refreshProfile();
-      }
-    });
+    void supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error) {
+          setSession(null);
+          return;
+        }
+        setSession(data.session);
+        if (data.session) {
+          void refreshProfile();
+        }
+      })
+      .catch(() => {
+        setSession(null);
+      })
+      .finally(() => {
+        setInitializing(false);
+      });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
@@ -90,8 +103,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    const handleUrl = (url: string | null) => {
+      if (!url) return;
+      void authService
+        .completeAuthRedirect(url)
+        .then((handled) => {
+          if (handled) void refreshProfile();
+        })
+        .catch(() => {
+          // A failed redirect leaves the current session in place.
+        });
+    };
+    const linkSub = Linking.addEventListener('url', (event) => handleUrl(event.url));
+    void Linking.getInitialURL().then(handleUrl);
+
     return () => {
       sub.subscription.unsubscribe();
+      linkSub.remove();
     };
   }, [configured, refreshProfile]);
 
@@ -117,11 +145,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await authService.signOut();
         setSession(null);
       },
-      sendEmailOtp: async (email) => {
-        await authService.sendEmailOtp(email);
-      },
-      verifyEmailOtp: async (email, token) => {
-        await authService.verifyEmailOtp(email, token);
+      sendEmailOtp: (email) => authService.sendEmailOtp(email),
+      verifyEmailOtp: async (email, token, mode) => {
+        await authService.verifyEmailOtp(email, token, mode);
         await refreshProfile();
       },
       signInWithGoogle: async () => {

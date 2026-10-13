@@ -7,7 +7,8 @@ project_id = "5minmindfulness"
 enabled = true
 
 [db]
-major_version = 15
+# Hosted project is Postgres 17. Local CLI diffs should use the same major version.
+major_version = 17
 
 [auth]
 enabled = true

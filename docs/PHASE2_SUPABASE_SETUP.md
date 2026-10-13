@@ -25,6 +25,7 @@ Or run the SQL files in order in the SQL editor:
 
 1. `supabase/migrations/20261012220000_phase2_schema.sql`
 2. `supabase/migrations/20261012220100_phase2_rls.sql`
+3. `supabase/migrations/20261013045812_phase2_function_hardening.sql`
 
 ## 3. Enable Auth providers
 
@@ -36,13 +37,14 @@ Auth → Providers → Anonymous → Enable.
 
 Auth → Providers → Email → Enable.
 
-Recommended for mobile:
+Guest upgrades call `updateUser({ email })`, which sends the **Change email address** template. New sign-ins use the Magic Link template. Put `{{ .Token }}` in both templates so the app can accept the code. This project’s email OTP length is 8.
 
-- Prefer OTP codes (template includes `{{ .Token }}`)
-- Confirm email settings as needed for your project
-- Add redirect URLs:
-  - `fiveminmindfulness://**`
-  - Expo Go / dev URLs as needed (`exp://...`)
+Add redirect URLs before confirmation links can reopen the app:
+
+- `fiveminmindfulness://**`
+- Expo Go / dev URLs as needed (`exp://...`)
+
+If an email already belongs to an account, the app keeps the guest session and does not merge data. Sign out of that guest session, then sign in with the existing account. Check-ins stay on the guest user.
 
 ### Manual identity linking (required for guest upgrades)
 
@@ -62,7 +64,7 @@ Without this, upgrading a guest may create a different user id and guest data wi
 1. Apple Developer → Identifiers → enable Sign in with Apple for `com.fiveminmindfulness.app`.
 2. Create Services ID / key as required by Supabase Apple docs.
 3. Supabase Auth → Apple → enable with Services ID, Secret, Team ID, Key ID.
-4. iOS uses native `expo-apple-authentication` + `signInWithIdToken`.
+4. iOS uses native `expo-apple-authentication`. A guest session links that Apple identity onto the same user. A signed-out Apple sign-in uses `signInWithIdToken`.
 
 ## 4. Deep links
 
@@ -73,11 +75,12 @@ Without this, upgrading a guest may create a different user id and guest data wi
 ## 5. Account deletion Edge Function
 
 ```bash
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
-supabase functions deploy delete-account
+supabase functions deploy delete-account --use-api
 ```
 
-The function verifies the caller JWT and deletes **that** user only. It never accepts a user id from the client body.
+Hosted Edge Functions receive `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Do not put the service role key in the mobile app.
+
+The function verifies the caller JWT and deletes **that** user only. A user id in the request body is ignored.
 
 ## 6. RLS verification
 

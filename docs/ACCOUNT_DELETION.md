@@ -19,9 +19,10 @@
 ## Deploy
 
 ```bash
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
-supabase functions deploy delete-account
+supabase functions deploy delete-account --use-api
 ```
+
+Hosted Edge Functions receive `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Do not put the service role key in the mobile app. The function ignores any user id in the request body and deletes only the caller from the JWT.
 
 ## Manual test (development account only)
 

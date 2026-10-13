@@ -26,9 +26,10 @@ export async function createCheckIn(input: CreateCheckInInput) {
   if (!user) throw new Error('You must be signed in to save a check-in.');
 
   if (parsed.name?.trim()) {
-    await supabase
+    const { error: profileError } = await supabase
       .from('profiles')
       .upsert({ id: user.id, display_name: parsed.name.trim() }, { onConflict: 'id' });
+    if (profileError) throw profileError;
   }
 
   const { data, error } = await supabase
