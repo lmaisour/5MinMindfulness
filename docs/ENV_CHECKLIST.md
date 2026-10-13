@@ -37,7 +37,10 @@ Do not commit secrets. Mobile app receives only public publishable/anon keys.
 
 ## Expo / EAS
 
-- EAS project ID
+- EAS project ID in `mobile/app.config.ts` (`extra.eas.projectId`)
+- The `development` build profile in `mobile/eas.json` uses the EAS `development` environment
+- `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are set on that environment as plain text, using the same public values as `mobile/.env`
+- Do not put `SUPABASE_SERVICE_ROLE_KEY` in EAS environments used by the mobile app
 - Apple Developer / Google Play credentials for production builds
 - Sign in with Apple capability
 - Google OAuth client IDs
