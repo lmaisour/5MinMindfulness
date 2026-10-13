@@ -7,19 +7,56 @@ import { getSupabase } from '@/lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
-export async function ensureAnonymousSession() {
-  const supabase = getSupabase();
-  const { data: existing } = await supabase.auth.getSession();
-  if (existing.session?.user) {
-    return existing.session;
-  }
+const DEAD_SESSION_CODES = new Set([
+  'session_not_found',
+  'session_expired',
+  'refresh_token_not_found',
+  'refresh_token_already_used',
+  'bad_jwt',
+]);
 
+function isDeadSession(error: { status?: number; code?: string }) {
+  return error.status === 401 || (error.code != null && DEAD_SESSION_CODES.has(error.code));
+}
+
+let anonymousSignIn: Promise<Awaited<ReturnType<typeof signInAnonymously>>> | null = null;
+
+async function signInAnonymously() {
+  const supabase = getSupabase();
   const { data, error } = await supabase.auth.signInAnonymously();
   if (error) throw error;
-  if (!data.session) {
-    throw new Error('Anonymous sign-in did not return a session.');
+  if (!data.session?.user?.is_anonymous) {
+    throw new Error('Anonymous sign-in did not return an anonymous session.');
   }
   return data.session;
+}
+
+/**
+ * Reuse a valid session, including an anonymous one.
+ * Concurrent callers share one sign-in so a double tap cannot create two users.
+ */
+export function ensureAnonymousSession() {
+  if (!anonymousSignIn) {
+    anonymousSignIn = resolveAnonymousSession().finally(() => {
+      anonymousSignIn = null;
+    });
+  }
+  return anonymousSignIn;
+}
+
+async function resolveAnonymousSession() {
+  const supabase = getSupabase();
+  const { data: existing, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+
+  if (existing.session?.user) {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userData.user) return existing.session;
+    if (userError && !isDeadSession(userError)) throw userError;
+    await supabase.auth.signOut();
+  }
+
+  return signInAnonymously();
 }
 
 export async function signOut() {

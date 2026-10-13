@@ -52,6 +52,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test:validation": "node scripts/validate-checkin.mjs",
+    "test:phase2": "node scripts/verify-phase2-auth-checkin.mjs",
     "lint": "expo lint"
   },
   "private": true

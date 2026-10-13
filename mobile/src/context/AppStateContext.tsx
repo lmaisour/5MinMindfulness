@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -90,6 +91,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
+  const submitLock = useRef(false);
   /** Local-only generation UI state (Phase 2 — not written to Supabase as ready). */
   const [localGeneration, setLocalGeneration] = useState<
     Record<string, MeditationStatus>
@@ -175,13 +177,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         })),
       setFocus: (focus) => setDraft((prev) => ({ ...prev, focus })),
       submitCheckInAndStartGeneration: async () => {
-        if (submittingCheckIn) {
+        if (submitLock.current) {
           throw new Error('Check-in already submitting');
         }
         if (!draft.focus || draft.moods.length === 0) {
           throw new Error('Complete mood and intention before continuing.');
         }
 
+        submitLock.current = true;
         setSubmittingCheckIn(true);
         try {
           await auth.ensureAnonymous();
@@ -200,6 +203,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           void refreshInsights();
           return { checkInId: saved.id, localId };
         } finally {
+          submitLock.current = false;
           setSubmittingCheckIn(false);
         }
       },

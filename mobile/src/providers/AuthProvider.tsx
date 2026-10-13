@@ -73,13 +73,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     startAuthAutoRefresh();
     const supabase = getSupabase();
 
-    void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setInitializing(false);
-      if (data.session) {
-        void refreshProfile();
-      }
-    });
+    void supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error) {
+          setSession(null);
+          return;
+        }
+        setSession(data.session);
+        if (data.session) {
+          void refreshProfile();
+        }
+      })
+      .catch(() => {
+        setSession(null);
+      })
+      .finally(() => {
+        setInitializing(false);
+      });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
