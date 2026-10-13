@@ -18,6 +18,8 @@
 
 ## Deploy
 
+Install the CLI first if `supabase` is not on your PATH. See `docs/PHASE2_SUPABASE_SETUP.md`.
+
 ```bash
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
 supabase functions deploy delete-account
