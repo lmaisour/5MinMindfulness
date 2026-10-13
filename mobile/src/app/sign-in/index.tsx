@@ -7,6 +7,7 @@ import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { APP_NAME } from '@/constants/brand';
 import { useAuth } from '@/providers/AuthProvider';
+import type { EmailAuthMode } from '@/services/auth';
 import { colors, radii, spacing } from '@/theme/tokens';
 
 export default function SignInScreen() {
@@ -15,6 +16,7 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [emailMode, setEmailMode] = useState<EmailAuthMode>('signin');
   const [busy, setBusy] = useState(false);
 
   const run = async (action: () => Promise<void>, successMessage?: string) => {
@@ -82,12 +84,30 @@ export default function SignInScreen() {
             label="Send email code"
             variant="ghost"
             disabled={busy || !email.trim()}
-            onPress={() =>
-              void run(async () => {
-                await auth.sendEmailOtp(email);
-                setOtpSent(true);
-              }, 'Check your email for a one-time code.')
-            }
+            onPress={() => {
+              setBusy(true);
+              void auth
+                .sendEmailOtp(email)
+                .then((result) => {
+                  if (result.status === 'linked') {
+                    router.replace('/(tabs)');
+                    return;
+                  }
+                  setEmailMode(result.mode);
+                  setOtpSent(true);
+                  Alert.alert(
+                    'Check your email',
+                    'Enter the code from the message. If the message only has a confirmation link, open it on this device.',
+                  );
+                })
+                .catch((error: unknown) => {
+                  Alert.alert(
+                    'Authentication error',
+                    error instanceof Error ? error.message : 'Please try again.',
+                  );
+                })
+                .finally(() => setBusy(false));
+            }}
           />
         ) : (
           <>
@@ -95,18 +115,37 @@ export default function SignInScreen() {
               value={otp}
               onChangeText={setOtp}
               keyboardType="number-pad"
-              placeholder="6-digit code"
+              placeholder="Email code"
               placeholderTextColor={colors.charcoalMuted}
               style={styles.input}
             />
             <Button
               label="Verify code"
               disabled={busy || otp.trim().length < 6}
-              onPress={() => void run(() => auth.verifyEmailOtp(email, otp))}
+              onPress={() => void run(() => auth.verifyEmailOtp(email, otp, emailMode))}
             />
           </>
         )}
 
+        {auth.isAnonymous ? (
+          <Button
+            label="Sign out of guest session"
+            variant="ghost"
+            disabled={busy}
+            onPress={() => {
+              setBusy(true);
+              void auth
+                .signOut()
+                .catch((error: unknown) => {
+                  Alert.alert(
+                    'Sign out failed',
+                    error instanceof Error ? error.message : 'Please try again.',
+                  );
+                })
+                .finally(() => setBusy(false));
+            }}
+          />
+        ) : null}
         <Button label="Not now" variant="ghost" onPress={() => router.back()} />
       </View>
     </Screen>

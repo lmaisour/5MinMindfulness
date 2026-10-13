@@ -1,8 +1,8 @@
 // Supabase Edge Function: delete-account
-// Deploy with: supabase functions deploy delete-account --no-verify-jwt=false
-// Requires SUPABASE_SERVICE_ROLE_KEY in function secrets (never ship to the mobile app).
+// Deploy with: supabase functions deploy delete-account --use-api
+// Hosted functions receive SUPABASE_SERVICE_ROLE_KEY. Never ship that key to the mobile app.
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { createClient } from 'npm:@supabase/supabase-js@2.49.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +16,8 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const anonKey =
+      Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
@@ -41,16 +42,21 @@ Deno.serve(async (req) => {
       return json({ error: 'Unauthorized' }, 401);
     }
 
-    // Never accept an arbitrary user id from the request body.
+    // The caller JWT is the only identity. A user id in the body is ignored.
     const userId = user.id;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Delete dependent rows first (also covered by ON DELETE CASCADE, kept explicit for clarity).
-    await admin.from('listening_history').delete().eq('user_id', userId);
-    await admin.from('meditations').delete().eq('user_id', userId);
-    await admin.from('daily_checkins').delete().eq('user_id', userId);
-    await admin.from('user_preferences').delete().eq('user_id', userId);
-    await admin.from('profiles').delete().eq('id', userId);
+    const steps = [
+      () => admin.from('listening_history').delete().eq('user_id', userId),
+      () => admin.from('meditations').delete().eq('user_id', userId),
+      () => admin.from('daily_checkins').delete().eq('user_id', userId),
+      () => admin.from('user_preferences').delete().eq('user_id', userId),
+      () => admin.from('profiles').delete().eq('id', userId),
+    ];
+    for (const step of steps) {
+      const { error } = await step();
+      if (error) return json({ error: error.message }, 500);
+    }
 
     // Optional: remove private storage objects for this user if a bucket exists.
     try {
