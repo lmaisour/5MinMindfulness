@@ -15,9 +15,29 @@ export const AUDIO_LIMITS = {
   perHour: 4,
   perDay: 10,
   staleMs: 100_000,
+  /** Suppresses a second provider call after an unpaid failure. */
+  retryCooldownMs: 20_000,
   minDurationSeconds: MIN_DURATION_SECONDS,
   maxDurationSeconds: MAX_DURATION_SECONDS,
 } as const;
+
+/** Provider rejections that stored no audio and did not spend a narration. */
+const UNBILLED_AUDIO_ERRORS = new Set([
+  'elevenlabs_failed',
+  'elevenlabs_credits',
+  'elevenlabs_auth',
+  'elevenlabs_rate_limit',
+  'network_failed',
+  'save_failed',
+]);
+
+/** Account and network failures are not evidence that a segment is bad. */
+const NON_COUNTING_SEGMENT_ERRORS = new Set([
+  'elevenlabs_credits',
+  'elevenlabs_auth',
+  'elevenlabs_rate_limit',
+  'network_failed',
+]);
 
 const MAX_BREAKS_PER_REQUEST = 2;
 const BREAK_TAG_MAX_SECONDS = 3;
@@ -89,10 +109,22 @@ export interface AudioRow {
   /** While this timestamp is in the future, another request is already calling ElevenLabs. */
   lockUntil: string | null;
   errorCode: string | null;
+  /** When the latest narration attempt was claimed. Used only for the unpaid-failure cooldown. */
+  attemptedAt: string | null;
   manifest: AudioManifest | null;
 }
 
-export type AudioAction = 'return_ready' | 'cached_failure' | 'wait' | 'continue' | 'begin' | 'blocked';
+export type AudioAction =
+  | 'return_ready'
+  | 'cached_failure'
+  | 'wait'
+  | 'continue'
+  | 'begin'
+  | 'retry_unbilled'
+  | 'cooldown'
+  | 'blocked';
+
+export type AudioQuotaReason = 'ok' | 'hourly' | 'daily';
 
 export interface PcmWav {
   sampleRate: number;
@@ -299,6 +331,52 @@ export function nextSpeechSegment(plan: PlanSegment[], manifest: AudioManifest |
   return null;
 }
 
+export function isUnbilledAudioFailure(errorCode: string | null, storedSegments: number): boolean {
+  return storedSegments === 0 && errorCode != null && UNBILLED_AUDIO_ERRORS.has(errorCode);
+}
+
+export function recordsSegmentFailure(errorCode: string): boolean {
+  return !NON_COUNTING_SEGMENT_ERRORS.has(errorCode);
+}
+
+export function audioFailureMessage(errorCode: string | null): string {
+  switch (errorCode) {
+    case 'elevenlabs_credits':
+      return 'ElevenLabs is out of credits. Add credits to your ElevenLabs account, then try again.';
+    case 'elevenlabs_auth':
+      return 'The narration service rejected the API key. Update the ElevenLabs secret, then try again.';
+    case 'elevenlabs_rate_limit':
+      return 'ElevenLabs is rate limiting requests. Wait a minute and try again.';
+    case 'network_failed':
+      return 'The narration service could not be reached. Try again.';
+    case 'elevenlabs_timeout':
+      return 'Narration took too long. You can continue without starting over.';
+    case 'storage_failed':
+      return 'The audio could not be saved. Try again.';
+    case 'save_failed':
+      return 'The meditation could not be updated. Try again.';
+    case 'audio_format':
+      return 'The narration audio could not be read. You can try again.';
+    case 'duration_out_of_range':
+      return 'The narration is outside the 5-minute window, so it was not marked ready.';
+    case 'elevenlabs_failed':
+      return 'ElevenLabs rejected the request before any audio was saved. You can try again.';
+    default:
+      return 'Narration failed. You can continue without starting over.';
+  }
+}
+
+export function audioQuotaMessage(reason: 'hourly' | 'daily'): string {
+  if (reason === 'daily') return 'You have reached today’s narration limit. Try again tomorrow.';
+  return 'You have reached the hourly narration limit. Try again in an hour.';
+}
+
+export function audioQuotaReason(counts: { hour: number; day: number }): AudioQuotaReason {
+  if (counts.day >= AUDIO_LIMITS.perDay) return 'daily';
+  if (counts.hour >= AUDIO_LIMITS.perHour) return 'hourly';
+  return 'ok';
+}
+
 export function audioAction(row: AudioRow, nowMs: number, fingerprint: string): AudioAction {
   if (
     row.status === 'ready'
@@ -314,23 +392,27 @@ export function audioAction(row: AudioRow, nowMs: number, fingerprint: string): 
   const lockMs = row.lockUntil ? Date.parse(row.lockUntil) : Number.NaN;
   const locked = Number.isFinite(lockMs) && lockMs > nowMs;
   const inFlight = row.status === 'generating_audio' || row.status === 'processing_audio';
+  const storedSegments = row.manifest?.segments.length ?? 0;
   if (inFlight && locked) return 'wait';
 
   if (
     sameManifest
     && row.errorCode === 'duration_out_of_range'
-    && row.manifest != null
-    && row.manifest.segments.length > 0
+    && storedSegments > 0
   ) {
     return 'cached_failure';
   }
 
   // Finishing an attempt reuses stored segments, so it does not spend another attempt.
-  if (sameManifest && (row.manifest?.segments.length ?? 0) > 0 && (inFlight || row.status === 'failed')) {
+  if (sameManifest && storedSegments > 0 && (inFlight || row.status === 'failed')) {
     return 'continue';
   }
 
   if (inFlight) return 'continue';
+
+  if (row.status === 'failed' && isUnbilledAudioFailure(row.errorCode, storedSegments)) {
+    return withinRetryCooldown(row.attemptedAt, nowMs) ? 'cooldown' : 'retry_unbilled';
+  }
 
   if (row.status === 'script_ready' || row.status === 'failed') {
     if (row.audioAttempts >= AUDIO_LIMITS.attemptsPerMeditation) return 'blocked';
@@ -338,6 +420,14 @@ export function audioAction(row: AudioRow, nowMs: number, fingerprint: string): 
   }
 
   return 'blocked';
+}
+
+function withinRetryCooldown(attemptedAt: string | null, nowMs: number): boolean {
+  if (!attemptedAt) return false;
+  const stamp = Date.parse(attemptedAt);
+  if (!Number.isFinite(stamp)) return false;
+  const age = nowMs - stamp;
+  return age >= 0 && age < AUDIO_LIMITS.retryCooldownMs;
 }
 
 export function finalAudioPath(userId: string, meditationId: string): string {
@@ -349,7 +439,7 @@ export function segmentAudioPath(userId: string, meditationId: string, index: nu
 }
 
 export function exceedsAudioRateLimit(counts: { hour: number; day: number }): boolean {
-  return counts.hour >= AUDIO_LIMITS.perHour || counts.day >= AUDIO_LIMITS.perDay;
+  return audioQuotaReason(counts) !== 'ok';
 }
 
 export function parseWav(bytes: Uint8Array): PcmWav {

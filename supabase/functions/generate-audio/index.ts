@@ -14,9 +14,11 @@ import {
   AUDIO_LIMITS,
   assembleNarration,
   audioAction,
+  audioFailureMessage,
+  audioQuotaMessage,
+  audioQuotaReason,
   emptyManifest,
   estimateCostUsd,
-  exceedsAudioRateLimit,
   finalAudioPath,
   measuredDurationAccepted,
   narrationFingerprint,
@@ -24,6 +26,7 @@ import {
   parseManifest,
   parseWav,
   planNarration,
+  recordsSegmentFailure,
   resolveVoiceSettings,
   segmentAudioPath,
   type AudioManifest,
@@ -48,6 +51,7 @@ interface MeditationAudioRow {
   audio_storage_path: string | null;
   actual_duration_seconds: number | null;
   audio_attempts: number | null;
+  audio_attempted_at: string | null;
   audio_lock_until: string | null;
   audio_manifest: unknown;
   error_code: string | null;
@@ -83,7 +87,7 @@ Deno.serve(async (req) => {
     const { data: row, error: rowError } = await supabase
       .from('meditations')
       .select(
-        'id, status, script_json, title, audio_storage_path, actual_duration_seconds, audio_attempts, audio_lock_until, audio_manifest, error_code',
+        'id, status, script_json, title, audio_storage_path, actual_duration_seconds, audio_attempts, audio_attempted_at, audio_lock_until, audio_manifest, error_code',
       )
       .eq('id', meditationId)
       .eq('user_id', user.id)
@@ -141,6 +145,7 @@ Deno.serve(async (req) => {
         audioAttempts: meditation.audio_attempts ?? 0,
         lockUntil: meditation.audio_lock_until,
         errorCode: meditation.error_code,
+        attemptedAt: meditation.audio_attempted_at,
         manifest,
       },
       Date.now(),
@@ -162,9 +167,20 @@ Deno.serve(async (req) => {
       return json({
         meditationId,
         status: meditation.status,
+        message: 'Narration is already in progress.',
         completedSegments: manifest?.segments.length ?? 0,
         totalSpeechSegments: speechCount(plan),
       }, 202);
+    }
+    if (action === 'cooldown') {
+      const code = meditation.error_code ?? 'elevenlabs_failed';
+      console.error('generate-audio', 'cooldown', code);
+      return json({
+        meditationId,
+        status: 'failed',
+        errorCode: code,
+        message: audioFailureMessage(code),
+      }, 200);
     }
     if (action === 'blocked') {
       const limited = (meditation.audio_attempts ?? 0) >= AUDIO_LIMITS.attemptsPerMeditation;
@@ -173,6 +189,7 @@ Deno.serve(async (req) => {
           error: limited
             ? 'This meditation has been recorded too many times.'
             : 'Narration cannot start until the script is ready.',
+          errorCode: limited ? 'attempt_quota' : 'not_ready',
         },
         limited ? 429 : 409,
       );
@@ -181,17 +198,24 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get('ELEVENLABS_API_KEY');
     if (!apiKey) return json({ error: 'Server misconfigured' }, 500);
 
-    if (action === 'begin' && await exceedsLimit(supabase, user.id)) {
-      return json({ error: 'Audio generation limit reached. Please try again later.' }, 429);
+    if (action === 'begin') {
+      const quota = await narrationQuota(supabase, user.id);
+      if (quota !== 'ok') {
+        console.error('generate-audio', quota === 'daily' ? 'daily_quota' : 'hourly_quota');
+        return json({ error: audioQuotaMessage(quota), errorCode: quota === 'daily' ? 'daily_quota' : 'hourly_quota' }, 429);
+      }
     }
 
     const claimed = action === 'begin'
       ? await claimBegin(supabase, user.id, meditation, settings, fingerprint)
-      : await claimContinue(supabase, user.id, meditation.id);
+      : action === 'retry_unbilled'
+        ? await claimUnbilledRetry(supabase, user.id, meditation.id)
+        : await claimContinue(supabase, user.id, meditation.id);
     if (!claimed) {
       return json({
         meditationId,
         status: 'generating_audio',
+        message: 'Narration is already in progress.',
         completedSegments: manifest?.segments.length ?? 0,
         totalSpeechSegments: speechCount(plan),
       }, 202);
@@ -202,9 +226,17 @@ Deno.serve(async (req) => {
       await logEvent(supabase, user.id, meditation.id, { event_type: 'started' });
     }
 
-    const workingManifest = action === 'begin'
+    const replaceManifest = action === 'begin' || (action === 'retry_unbilled' && manifest?.fingerprint !== fingerprint);
+    const workingManifest = replaceManifest
       ? emptyManifest(settings, fingerprint)
       : manifest ?? emptyManifest(settings, fingerprint);
+    if (replaceManifest && action === 'retry_unbilled') {
+      await supabase
+        .from('meditations')
+        .update({ audio_manifest: workingManifest })
+        .eq('id', meditation.id)
+        .eq('user_id', user.id);
+    }
 
     try {
       const next = nextSpeechSegment(plan, workingManifest);
@@ -213,8 +245,7 @@ Deno.serve(async (req) => {
       }
       return await assemble(supabase, user.id, meditation.id, plan, workingManifest);
     } catch (error) {
-      const timedOut = error instanceof Error && error.name === 'AbortError';
-      const code = timedOut ? 'elevenlabs_timeout' : errorCode(error);
+      const code = classifyError(error);
       await supabase
         .from('meditations')
         .update({ status: 'failed', error_code: code, audio_lock_until: null })
@@ -222,12 +253,7 @@ Deno.serve(async (req) => {
         .eq('user_id', user.id);
       await logEvent(supabase, user.id, meditation.id, { event_type: 'failed', error_code: code });
       console.error('generate-audio', code);
-      return json({
-        error: timedOut
-          ? 'Narration took too long. You can continue without starting over.'
-          : 'Narration failed. You can continue without starting over.',
-        errorCode: code,
-      }, timedOut ? 504 : 502);
+      return json({ error: audioFailureMessage(code), errorCode: code }, statusFor(code));
     }
   } catch (error) {
     console.error('generate-audio', error instanceof Error ? error.name : 'error');
@@ -265,6 +291,7 @@ async function narrateSegment(
       .update({ status: 'failed', error_code: 'elevenlabs_failed', audio_lock_until: null, audio_manifest: manifest })
       .eq('id', meditationId)
       .eq('user_id', userId);
+    console.error('generate-audio', 'segment_stopped');
     return json({
       error: 'Narration stopped after repeated failures, so another request was not sent.',
       errorCode: 'elevenlabs_failed',
@@ -275,10 +302,14 @@ async function narrateSegment(
       bytes = await synthesize(apiKey, settings, segment);
       parseWav(bytes);
     } catch (error) {
-      const code = error instanceof Error && error.name === 'AbortError' ? 'elevenlabs_timeout' : errorCode(error);
+      const code = classifyError(error);
+      const counted = recordsSegmentFailure(code);
+      const nextFailures = counted ? failures + 1 : failures;
       const nextManifest: AudioManifest = {
         ...manifest,
-        segmentFailures: { ...manifest.segmentFailures, [String(segment.index)]: failures + 1 },
+        segmentFailures: counted
+          ? { ...manifest.segmentFailures, [String(segment.index)]: nextFailures }
+          : manifest.segmentFailures,
       };
       await supabase
         .from('meditations')
@@ -292,13 +323,13 @@ async function narrateSegment(
         .eq('user_id', userId);
       await logEvent(supabase, userId, meditationId, { event_type: 'failed', error_code: code });
       console.error('generate-audio', code);
-      const stopped = failures + 1 >= 2;
+      const stopped = counted && nextFailures >= 2;
       return json({
         error: stopped
           ? 'Narration stopped after repeated failures, so another request was not sent.'
-          : 'Narration failed. You can continue without starting over.',
+          : audioFailureMessage(code),
         errorCode: code,
-      }, code === 'elevenlabs_timeout' ? 504 : 502);
+      }, statusFor(code));
     }
     const uploaded = await supabase.storage.from(AUDIO_BUCKET).upload(path, wavBlob(bytes), {
       contentType: 'audio/wav',
@@ -476,14 +507,28 @@ async function requestSpeech(apiKey: string, settings: VoiceSettings, segment: S
     });
     if (!response.ok) {
       console.error('generate-audio elevenlabs', response.status);
-      throw new Error(response.status >= 500 || response.status === 429 ? 'elevenlabs_rejected' : 'elevenlabs_failed');
+      throw new Error(providerErrorCode(response.status));
     }
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (bytes.length < 44) throw new Error('audio_format');
     return bytes;
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'AbortError' || KNOWN_AUDIO_ERRORS.has(error.message))) {
+      throw error;
+    }
+    console.error('generate-audio', 'network_failed');
+    throw new Error('network_failed');
   } finally {
     clearTimeout(timer);
   }
+}
+
+function providerErrorCode(status: number): string {
+  if (status === 401 || status === 403) return 'elevenlabs_auth';
+  if (status === 402) return 'elevenlabs_credits';
+  if (status === 429) return 'elevenlabs_rate_limit';
+  if (status >= 500) return 'elevenlabs_rejected';
+  return 'elevenlabs_failed';
 }
 
 async function claimBegin(
@@ -509,6 +554,23 @@ async function claimBegin(
     .eq('id', row.id)
     .eq('user_id', userId)
     .in('status', ['script_ready', 'failed'])
+    .select('id')
+    .maybeSingle();
+  if (error) throw new Error('save_failed');
+  return Boolean(data);
+}
+
+async function claimUnbilledRetry(supabase: Db, userId: string, meditationId: string) {
+  const { data, error } = await supabase
+    .from('meditations')
+    .update({
+      status: 'generating_audio',
+      audio_lock_until: lockUntil(),
+      audio_attempted_at: new Date().toISOString(),
+    })
+    .eq('id', meditationId)
+    .eq('user_id', userId)
+    .eq('status', 'failed')
     .select('id')
     .maybeSingle();
   if (error) throw new Error('save_failed');
@@ -553,24 +615,24 @@ async function claimContinue(supabase: Db, userId: string, meditationId: string)
   return Boolean(expired.data);
 }
 
-async function exceedsLimit(supabase: Db, userId: string) {
+async function narrationQuota(supabase: Db, userId: string) {
   const now = Date.now();
   const [hour, day] = await Promise.all([
-    countStarts(supabase, userId, new Date(now - 60 * 60 * 1000).toISOString()),
-    countStarts(supabase, userId, new Date(now - 24 * 60 * 60 * 1000).toISOString()),
+    countBilledMeditations(supabase, userId, new Date(now - 60 * 60 * 1000).toISOString()),
+    countBilledMeditations(supabase, userId, new Date(now - 24 * 60 * 60 * 1000).toISOString()),
   ]);
-  return exceedsAudioRateLimit({ hour, day });
+  return audioQuotaReason({ hour, day });
 }
 
-async function countStarts(supabase: Db, userId: string, since: string) {
-  const { count, error } = await supabase
+async function countBilledMeditations(supabase: Db, userId: string, since: string) {
+  const { data, error } = await supabase
     .from('audio_generation_events')
-    .select('id', { count: 'exact', head: true })
+    .select('meditation_id')
     .eq('user_id', userId)
-    .eq('event_type', 'started')
+    .eq('event_type', 'segment')
     .gte('created_at', since);
   if (error) throw new Error('save_failed');
-  return count ?? 0;
+  return new Set((data ?? []).map((row) => row.meditation_id).filter((id): id is string => typeof id === 'string')).size;
 }
 
 async function logEvent(
@@ -622,11 +684,31 @@ function lockUntil() {
   return new Date(Date.now() + AUDIO_LIMITS.staleMs).toISOString();
 }
 
-function errorCode(error: unknown) {
+const KNOWN_AUDIO_ERRORS = new Set([
+  'audio_format',
+  'storage_failed',
+  'save_failed',
+  'invalid_script',
+  'elevenlabs_failed',
+  'elevenlabs_rejected',
+  'elevenlabs_auth',
+  'elevenlabs_credits',
+  'elevenlabs_rate_limit',
+  'network_failed',
+]);
+
+function classifyError(error: unknown) {
+  if (error instanceof Error && error.name === 'AbortError') return 'elevenlabs_timeout';
   const message = error instanceof Error ? error.message : '';
-  if (message === 'audio_format' || message === 'storage_failed' || message === 'invalid_script') return message;
-  if (message === 'elevenlabs_failed' || message === 'elevenlabs_rejected') return 'elevenlabs_failed';
+  if (message === 'elevenlabs_rejected') return 'elevenlabs_failed';
+  if (KNOWN_AUDIO_ERRORS.has(message)) return message;
   return 'audio_failed';
+}
+
+function statusFor(code: string) {
+  if (code === 'elevenlabs_timeout') return 504;
+  if (code === 'elevenlabs_rate_limit') return 429;
+  return 502;
 }
 
 function wavBlob(bytes: Uint8Array) {

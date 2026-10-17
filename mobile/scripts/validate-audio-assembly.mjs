@@ -6,17 +6,23 @@ const moduleUrl = new URL('../../supabase/functions/_shared/audioAssembly.ts', i
 const audio = await import(moduleUrl);
 
 const {
+  AUDIO_LIMITS,
   DEFAULT_VOICE_ID,
   assembleNarration,
   audioAction,
+  audioFailureMessage,
+  audioQuotaMessage,
+  audioQuotaReason,
   durationSeconds,
   encodeWav,
   estimateCostUsd,
+  isUnbilledAudioFailure,
   measuredDurationAccepted,
   narrationFingerprint,
   nextSpeechSegment,
   parseWav,
   planNarration,
+  recordsSegmentFailure,
   resolveVoiceSettings,
   silenceSamples,
 } = audio;
@@ -139,6 +145,7 @@ const baseRow = {
   audioAttempts: 0,
   lockUntil: null,
   errorCode: null,
+  attemptedAt: null,
   manifest: null,
 };
 assert(audioAction(baseRow, 1_000, fingerprint) === 'begin', 'a saved script starts narration');
@@ -186,6 +193,79 @@ assert(
   'out of range audio is not recorded again',
 );
 assert(audioAction({ ...baseRow, audioAttempts: 3 }, 1_000, fingerprint) === 'blocked', 'attempt cap blocks a new recording');
+
+const unpaid = {
+  ...baseRow,
+  status: 'failed',
+  audioAttempts: 3,
+  errorCode: 'elevenlabs_failed',
+  attemptedAt: new Date(0).toISOString(),
+  manifest: { version: 1, fingerprint, voiceId: settings.voiceId, segments: [], segmentFailures: { 0: 1 } },
+};
+assert(
+  audioAction(unpaid, 1_000_000, fingerprint) === 'retry_unbilled',
+  'an unpaid failure stays retryable after the attempt cap',
+);
+assert(
+  audioAction({ ...unpaid, errorCode: 'elevenlabs_credits' }, 1_000_000, fingerprint) === 'retry_unbilled',
+  'a credit rejection does not use the recording cap',
+);
+assert(
+  audioAction(
+    { ...unpaid, attemptedAt: new Date(1_000_000 - 5_000).toISOString() },
+    1_000_000,
+    fingerprint,
+  ) === 'cooldown',
+  'a recent unpaid failure does not call the provider again',
+);
+assert(
+  audioAction(
+    {
+      ...unpaid,
+      status: 'generating_audio',
+      lockUntil: new Date(1_000_000 + 10_000).toISOString(),
+    },
+    1_000_000,
+    fingerprint,
+  ) === 'wait',
+  'a locked meditation does not start a second provider request',
+);
+assert(isUnbilledAudioFailure('elevenlabs_credits', 0) === true, 'credit rejection stored no audio');
+assert(isUnbilledAudioFailure('elevenlabs_timeout', 0) === false, 'a timeout may already have been billed');
+assert(recordsSegmentFailure('elevenlabs_credits') === false, 'credit rejection does not exhaust a segment');
+assert(recordsSegmentFailure('elevenlabs_timeout') === true, 'a timeout counts as a segment failure');
+assert(audioQuotaReason({ hour: 0, day: 0 }) === 'ok', 'unpaid starts do not fill the narration quota');
+assert(audioQuotaReason({ hour: 4, day: 4 }) === 'hourly', 'four billed meditations fill the hour');
+assert(audioQuotaReason({ hour: 1, day: 10 }) === 'daily', 'ten billed meditations fill the day');
+assert(audioQuotaMessage('hourly') !== audioQuotaMessage('daily'), 'hourly and daily limits say different things');
+assert(audioFailureMessage('elevenlabs_credits').includes('credits'), 'credit failures name the missing credits');
+assert(audioFailureMessage('elevenlabs_auth').includes('API key'), 'auth failures name the key');
+assert(audioFailureMessage('elevenlabs_rate_limit').includes('rate limiting'), 'provider rate limit is specific');
+assert(audioFailureMessage('network_failed').includes('could not be reached'), 'network failures are specific');
+assert(audioFailureMessage('storage_failed').includes('could not be saved'), 'storage failures are specific');
+assert(audioFailureMessage('elevenlabs_timeout').includes('too long'), 'timeouts are specific');
+assert(
+  audioFailureMessage('elevenlabs_failed') !== 'Narration failed. You can continue without starting over.',
+  'a rejected request is not a generic failure',
+);
+assert(AUDIO_LIMITS.retryCooldownMs === 20_000, 'unpaid retries wait twenty seconds');
+
+const appMessages = await import('../src/constants/audioErrors.ts');
+for (const code of [
+  'elevenlabs_credits',
+  'elevenlabs_auth',
+  'elevenlabs_rate_limit',
+  'network_failed',
+  'elevenlabs_timeout',
+  'storage_failed',
+  'elevenlabs_failed',
+]) {
+  assert(
+    appMessages.narrationFailureMessage(code) === audioFailureMessage(code),
+    `app message matches server for ${code}`,
+  );
+}
+
 assert(nextSpeechSegment(plan, partial) !== null && nextSpeechSegment(plan, partial).index !== 0, 'stored speech is not requested again');
 assert(estimateCostUsd(3500) === 0.28, 'multilingual cost is 8 cents per thousand characters');
 assert(estimateCostUsd(0) === 0, 'cached audio has no cost');

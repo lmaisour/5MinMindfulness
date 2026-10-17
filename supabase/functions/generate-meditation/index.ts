@@ -5,6 +5,8 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.49.1';
 
+import { audioFailureMessage } from '../_shared/audioAssembly.ts';
+
 import {
   GENERATION_LIMITS,
   SAFETY_MESSAGE,
@@ -89,7 +91,7 @@ Deno.serve(async (req) => {
     const existingResult = await supabase
       .from('meditations')
       .select(
-        'id, status, script_json, title, created_at, updated_at, generation_attempts, audio_attempts',
+        'id, status, script_json, title, created_at, updated_at, generation_attempts, audio_attempts, error_code',
       )
       .eq('checkin_id', checkinId)
       .eq('user_id', user.id)
@@ -105,18 +107,7 @@ Deno.serve(async (req) => {
       return json({ meditationId: existingResult.data.id, status: 'generating_script' }, 202);
     }
     if (decision === 'leave_existing' && existingResult.data) {
-      return json(
-        {
-          meditationId: existingResult.data.id,
-          status: existingResult.data.status,
-          title: existingResult.data.title,
-          message:
-            existingResult.data.status === 'ready'
-              ? 'Your meditation is ready.'
-              : 'Narration uses the saved script.',
-        },
-        200,
-      );
+      return json(savedMeditationResponse(existingResult.data), 200);
     }
     if (existingResult.data && exceedsAttemptLimit(existingResult.data.generation_attempts ?? 0)) {
       return json({ error: 'This check-in has been generated too many times.' }, 429);
@@ -269,7 +260,23 @@ type MeditationRow = {
   updated_at: string | null;
   generation_attempts: number | null;
   audio_attempts: number | null;
+  error_code?: string | null;
 };
+
+function savedMeditationResponse(row: MeditationRow) {
+  const failedNarration = row.status === 'failed' && row.script_json != null;
+  return {
+    meditationId: row.id,
+    status: row.status,
+    title: row.title,
+    errorCode: row.error_code ?? null,
+    message: row.status === 'ready'
+      ? 'Your meditation is ready.'
+      : failedNarration
+        ? audioFailureMessage(row.error_code ?? null)
+        : 'Narration uses the saved script.',
+  };
+}
 
 function toExisting(row: MeditationRow | null) {
   if (!row) return null;
@@ -305,7 +312,7 @@ async function claimMeditation(
     if (inserted.error.code !== '23505') return { error: 'Could not start generation.', status: 500 };
     const raced = await supabase
       .from('meditations')
-      .select('id, status, script_json, title, created_at, updated_at, generation_attempts')
+      .select('id, status, script_json, title, created_at, updated_at, generation_attempts, audio_attempts, error_code')
       .eq('checkin_id', checkinId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -315,7 +322,7 @@ async function claimMeditation(
 
   const current = await supabase
     .from('meditations')
-    .select('id, status, script_json, title, created_at, updated_at, generation_attempts')
+    .select('id, status, script_json, title, created_at, updated_at, generation_attempts, audio_attempts, error_code')
     .eq('id', existingId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -336,16 +343,7 @@ async function resumeOrRespond(
     return { response: json({ meditationId: row.id, status: 'generating_script' }, 202) };
   }
   if (decision === 'leave_existing') {
-    return {
-      response: json(
-        {
-          meditationId: row.id,
-          status: row.status,
-          message: 'This check-in already has a meditation. Audio playback is not part of this step.',
-        },
-        200,
-      ),
-    };
+    return { response: json(savedMeditationResponse(row), 200) };
   }
 
   const claimedId = await takeOver(supabase, row.id, generationAttempts);
@@ -353,7 +351,7 @@ async function resumeOrRespond(
 
   const again = await supabase
     .from('meditations')
-    .select('id, status, script_json, title, created_at, updated_at, generation_attempts')
+    .select('id, status, script_json, title, created_at, updated_at, generation_attempts, audio_attempts, error_code')
     .eq('id', row.id)
     .maybeSingle();
   if (!again.data) return { error: 'Could not start generation.', status: 500 };
@@ -368,9 +366,10 @@ async function resumeOrRespond(
         {
           meditationId: next.id,
           status: nextDecision === 'in_progress' ? 'generating_script' : next.status,
+          errorCode: nextDecision === 'leave_existing' ? next.error_code ?? null : undefined,
           message:
             nextDecision === 'leave_existing'
-              ? 'This check-in already has a meditation. Audio playback is not part of this step.'
+              ? savedMeditationResponse(next).message
               : undefined,
         },
         nextDecision === 'in_progress' ? 202 : 200,

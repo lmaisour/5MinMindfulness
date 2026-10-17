@@ -1,3 +1,4 @@
+import { narrationFailureMessage } from '@/constants/audioErrors';
 import { getSupabase } from '@/lib/supabase';
 import type { MeditationStatus } from '@/types';
 
@@ -12,6 +13,7 @@ export interface GenerationResult {
   title?: string | null;
   estimatedDurationSeconds?: number | null;
   message?: string;
+  errorCode?: string | null;
   script?: {
     title: string;
     sections: GeneratedScriptSection[];
@@ -63,13 +65,13 @@ export async function readMeditationForCheckIn(checkinId: string): Promise<Gener
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('meditations')
-    .select('id, status, title, script_json')
+    .select('id, status, title, script_json, error_code')
     .eq('checkin_id', checkinId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const script = data.script_json as GenerationResult['script'] | null;
-  if (data.status === 'failed') {
+  if (data.status === 'failed' && !script) {
     throw new Error('Meditation generation failed. Please try again.');
   }
   return {
@@ -77,6 +79,8 @@ export async function readMeditationForCheckIn(checkinId: string): Promise<Gener
     status: data.status,
     title: data.title,
     estimatedDurationSeconds: script?.timing?.estimatedDurationSeconds ?? null,
+    errorCode: data.error_code,
+    message: data.status === 'failed' ? narrationFailureMessage(data.error_code) : undefined,
     script: script ?? undefined,
   };
 }

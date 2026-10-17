@@ -6,6 +6,7 @@ import { BreathingCircle } from '@/components/ui/BreathingCircle';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
+import { narrationFailureMessage } from '@/constants/audioErrors';
 import { APP_NAME } from '@/constants/brand';
 import { GENERATION_MESSAGES } from '@/constants/checkin';
 import { useAppState } from '@/context/AppStateContext';
@@ -71,7 +72,7 @@ export default function GenerationScreen() {
     [openPlayer],
   );
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (resumeFailedAudio = false) => {
     if (!id) return;
     setLoading(true);
     setError(null);
@@ -106,6 +107,11 @@ export default function GenerationScreen() {
         await openPlayer(next.meditationId);
         return;
       }
+      if (next.status === 'failed' && !resumeFailedAudio) {
+        setPhase('failed');
+        setError(narrationFailureMessage(next.errorCode, next.message));
+        return;
+      }
       setPhase(next.status === 'script_ready' ? 'generating_audio' : next.status);
       await narrate(next.meditationId);
     } catch (cause) {
@@ -117,13 +123,16 @@ export default function GenerationScreen() {
     }
   }, [id, narrate, openPlayer]);
 
+  const generateRef = useRef(generate);
+  generateRef.current = generate;
+
   useEffect(() => {
     cancelledRef.current = false;
-    void generate();
+    void generateRef.current();
     return () => {
       cancelledRef.current = true;
     };
-  }, [generate]);
+  }, [id]);
 
   const safety = result?.status === 'safety_support';
   const message = GENERATION_MESSAGES[phase] ?? GENERATION_MESSAGES.generating_audio;
@@ -169,7 +178,7 @@ export default function GenerationScreen() {
         {error ? (
           <Button
             label="Try again"
-            onPress={() => void generate()}
+            onPress={() => void generate(true)}
             disabled={loading}
           />
         ) : null}
