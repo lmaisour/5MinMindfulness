@@ -18,6 +18,8 @@ const {
   exceedsAttemptLimit,
   focusConflicts,
   WORDS_PER_SECOND,
+  estimateScriptSeconds,
+  sectionBudgets,
 } = script;
 
 function assert(condition, message) {
@@ -91,7 +93,13 @@ assert(!emptied.ok && emptied.errors.some((error) => error.includes('narration')
 const longPause = validScript();
 longPause.sections[0].blocks[1].seconds = 40;
 const paused = validateModelScript(longPause);
-assert(!paused.ok, 'excessive pause accepted');
+assert(paused.ok, `a 40s pause should be shortened, not rejected: ${paused.ok ? '' : paused.errors.join('; ')}`);
+const longestPause = Math.max(
+  ...paused.script.sections.flatMap((section) =>
+    section.blocks.filter((block) => block.type === 'pause').map((block) => block.seconds),
+  ),
+);
+assert(longestPause <= 12, `pause remained ${longestPause}s`);
 
 const medical = validScript();
 medical.sections[1].blocks[0].text = 'I diagnose anxiety disorder and this will cure it for you today friend';
@@ -111,10 +119,86 @@ assert(focusConflicts('Sleep', sleepParsed.script), 'sleep script may ask the li
 const schemaText = JSON.stringify(SCRIPT_RESPONSE_SCHEMA);
 assert(!schemaText.includes('minItems') && !schemaText.includes('maxItems'), 'strict schema keeps length checks in the validator');
 assert(schemaText.includes('"additionalProperties":false'), 'schema rejects extra fields');
+assert(schemaText.includes('"enum":[0]'), 'speech seconds are fixed at 0 in the schema');
+assert(schemaText.includes('"enum":[""]'), 'pause text is fixed as empty in the schema');
 
 const timedSpeech = validScript();
 timedSpeech.sections[0].blocks[0].seconds = 4;
-assert(!validateModelScript(timedSpeech).ok, 'speech seconds must stay 0');
+const timed = validateModelScript(timedSpeech);
+assert(!timed.ok && timed.errors.some((error) => error.includes('seconds to 0')), 'speech seconds must stay 0');
+
+// Live OpenAI drafts failed with speech seconds other than 0, more than 8 blocks,
+// under 20 seconds of pause, and an estimate around 274 seconds.
+const nearMiss = validScript();
+nearMiss.sections[3].blocks = [
+  speech(words(40, 'practice')),
+  pause(2),
+  speech(words(40, 'notice')),
+  pause(2),
+  speech(words(40, 'soften')),
+  pause(2),
+  speech(words(40, 'stay')),
+  pause(2),
+  speech(words(45, 'gentle')),
+];
+nearMiss.sections.forEach((section, index) => {
+  if (index === 3) return;
+  const pauseBlock = section.blocks.find((block) => block.type === 'pause');
+  if (pauseBlock) pauseBlock.seconds = 2;
+});
+const rawEstimate = estimateScriptSeconds(nearMiss);
+assert(rawEstimate < 285 && rawEstimate > 240, `near-miss fixture should sit just under 285, got ${rawEstimate}`);
+assert(nearMiss.sections[3].blocks.length > 8, 'fixture should reproduce the block-count failure');
+const repaired = validateModelScript(nearMiss);
+assert(repaired.ok, `near-miss draft rejected: ${repaired.ok ? '' : repaired.errors.join('; ')}`);
+const repairedEstimate = estimateScriptSeconds(repaired.script);
+const repairedPause = repaired.script.sections
+  .flatMap((section) => section.blocks)
+  .filter((block) => block.type === 'pause')
+  .reduce((sum, block) => sum + block.seconds, 0);
+assert(repairedEstimate >= 285 && repairedEstimate <= 315, `fitted estimate ${repairedEstimate}`);
+assert(repairedPause >= 20 && repairedPause <= 75, `fitted pause ${repairedPause}`);
+
+// Live Motivation draft: pauses already at 12 seconds and the estimate stuck at 271.
+const saturated = {
+  title: 'A steadier morning',
+  sections: [
+    { id: 'arrival', blocks: [speech(words(50, 'arrive')), pause(12)] },
+    { id: 'breathing', blocks: [speech(words(83, 'breathe')), pause(12)] },
+    { id: 'emotional_awareness', blocks: [speech(words(81, 'notice')), pause(12)] },
+    {
+      id: 'personalized_practice',
+      blocks: [speech(words(80, 'practice')), pause(12), speech(words(85, 'step'))],
+    },
+    { id: 'closing', blocks: [speech(words(75, 'close')), pause(12)] },
+  ],
+};
+const saturatedRaw = estimateScriptSeconds(saturated);
+assert(saturatedRaw > 265 && saturatedRaw < 285, `saturated fixture should be just short, got ${saturatedRaw}`);
+const saturatedFixed = validateModelScript(saturated);
+assert(
+  saturatedFixed.ok,
+  `saturated draft rejected: ${saturatedFixed.ok ? '' : saturatedFixed.errors.join('; ')}`,
+);
+const saturatedEstimate = estimateScriptSeconds(saturatedFixed.script);
+const saturatedPause = saturatedFixed.script.sections
+  .flatMap((section) => section.blocks)
+  .filter((block) => block.type === 'pause')
+  .reduce((sum, block) => sum + block.seconds, 0);
+assert(saturatedEstimate >= 285 && saturatedEstimate <= 315, `saturated fitted estimate ${saturatedEstimate}`);
+assert(saturatedPause <= 75 && saturatedPause >= 20, `saturated pause total ${saturatedPause}`);
+assert(
+  saturatedFixed.script.sections.every((section) =>
+    section.blocks.every((block) => block.type !== 'pause' || block.seconds <= 12),
+  ),
+  'saturated fit created a pause over 12 seconds',
+);
+assert(
+  repaired.script.sections.every((section) =>
+    section.blocks.every((block) => block.type !== 'pause' || (block.seconds >= 2 && block.seconds <= 12)),
+  ),
+  'fitted pauses left the 2–12 second range',
+);
 
 const pauseText = validScript();
 pauseText.sections[0].blocks[1].text = 'wait here';
@@ -146,6 +230,11 @@ assert(withHistory[1].content.includes('Anxious'), 'today mood missing');
 assert(withHistory[0].content.includes('untrusted'), 'notes not fenced');
 assert(withHistory[0].content.includes('acknowledge the speed'), 'high energy guidance missing');
 assert(withHistory[0].content.includes('Stress Relief'), 'focus practice missing');
+assert(
+  withHistory[0].content.includes(String(sectionBudgets()[0].words)),
+  'arrival word budget missing from the prompt',
+);
+assert(withHistory[0].content.includes('seconds to 0'), 'prompt must require speech seconds to stay 0');
 assert(withHistory[1].content.includes('Tired'), 'history missing when enabled');
 assert(withHistory[1].content.includes('lowest priority'), 'history is not marked as lower priority');
 

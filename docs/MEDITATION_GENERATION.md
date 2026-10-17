@@ -51,7 +51,7 @@ If input suggests an immediate safety crisis, route to an appropriate supportive
 
 `generate-meditation` writes a provider-neutral script into `meditations.script_json` and sets status to `script_ready`. Status `ready` is reserved for a later phase that has measured audio. `actual_duration_seconds` stays empty until then.
 
-Speech timing uses a 2.15 words-per-second estimate. That is not a measured audio duration. Acceptable estimated length remains 285–315 seconds, with a 300-second target.
+Speech timing uses a 2.15 words-per-second estimate. That is not a measured audio duration. Acceptable estimated length remains 285–315 seconds, with a 300-second target. Speech blocks always store `seconds: 0`. If a valid draft is only a little short or long, pause lengths are adjusted between 2 and 12 seconds, with at most 75 seconds of silence in total.
 
 Sections, in order:
 

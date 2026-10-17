@@ -162,6 +162,7 @@ Deno.serve(async (req) => {
     let corrections: string[] | undefined;
     let stored: StoredScript | null = null;
     let lastFailure: { timeout?: boolean; statusCode?: number } | null = null;
+    const validationAttempts: string[][] = [];
     for (let attempt = 1; attempt <= MAX_MODEL_ATTEMPTS; attempt += 1) {
       const draft = await requestScript(openAiKey, {
         moods: checkin.moods ?? [],
@@ -179,6 +180,7 @@ Deno.serve(async (req) => {
       const conflict = validated.ok ? focusConflicts(checkin.focus, validated.script) : null;
       if (!validated.ok || conflict) {
         corrections = validated.ok ? [conflict!] : validated.errors;
+        validationAttempts.push(corrections);
         lastFailure = null;
         continue;
       }
@@ -201,7 +203,17 @@ Deno.serve(async (req) => {
         );
       }
       await markFailed(supabase, claimed.id, 'invalid_script');
-      return json({ error: 'The script did not pass validation. Please try again.' }, 422);
+      console.error(
+        'generate-meditation invalid_script',
+        JSON.stringify(validationAttempts.map(validationCodes)),
+      );
+      return json(
+        {
+          error: 'The script did not pass validation. Please try again.',
+          validationErrors: validationAttempts,
+        },
+        422,
+      );
     }
 
     const saved = await supabase
@@ -446,7 +458,7 @@ async function requestScript(
       },
       body: JSON.stringify({
         model: MODEL,
-        temperature: 0.7,
+        temperature: 0.4,
         messages: buildGenerationMessages(context, correction),
         response_format: {
           type: 'json_schema',
@@ -480,6 +492,27 @@ async function markFailed(
     .from('meditations')
     .update({ status: 'failed', error_code: errorCode, script_json: null })
     .eq('id', meditationId);
+}
+
+function validationCodes(errors: string[]): string[] {
+  return errors.map((error) => {
+    if (error.startsWith('Estimated duration')) return 'duration';
+    if (error.includes('estimates to')) return 'section_duration';
+    if (error.startsWith('Total pause')) return 'total_pause';
+    if (error.includes('pauses must be')) return 'pause_bounds';
+    if (error.startsWith('Pause blocks')) return 'pause_text';
+    if (error.includes('seconds to 0')) return 'speech_seconds';
+    if (error.includes('speech must be')) return 'speech_length';
+    if (error.includes('needs narration') || error.endsWith('is empty.')) return 'empty_section';
+    if (error.includes('longest')) return 'practice_longest';
+    if (error.includes('unsafe') || error.includes('unsupported')) return 'unsafe';
+    if (error.startsWith('Title')) return 'title';
+    if (error.includes('exactly five')) return 'section_count';
+    if (error.includes('the maximum is')) return 'block_count';
+    if (error.includes('must be ')) return 'section_order';
+    if (error.includes('not speech or pause')) return 'block_type';
+    return 'other';
+  });
 }
 
 function json(body: unknown, status: number) {
