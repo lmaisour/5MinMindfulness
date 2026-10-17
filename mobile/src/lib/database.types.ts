@@ -9,6 +9,7 @@ export type Json =
 export type MeditationStatus =
   | 'pending'
   | 'generating_script'
+  | 'script_ready'
   | 'generating_audio'
   | 'processing_audio'
   | 'ready'
@@ -84,6 +85,8 @@ export type Database = {
           status: MeditationStatus;
           error_code: string | null;
           created_at: string;
+          updated_at: string;
+          generation_attempts: number;
           completed_at: string | null;
         };
         Insert: {
@@ -98,6 +101,8 @@ export type Database = {
           status?: MeditationStatus;
           error_code?: string | null;
           created_at?: string;
+          updated_at?: string;
+          generation_attempts?: number;
           completed_at?: string | null;
         };
         Update: {
@@ -112,6 +117,8 @@ export type Database = {
           status?: MeditationStatus;
           error_code?: string | null;
           created_at?: string;
+          updated_at?: string;
+          generation_attempts?: number;
           completed_at?: string | null;
         };
         Relationships: [];

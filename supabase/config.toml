@@ -15,3 +15,6 @@ enable_anonymous_sign_ins = true
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.generate-meditation]
+verify_jwt = true

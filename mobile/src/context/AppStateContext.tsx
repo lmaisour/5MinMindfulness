@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -21,7 +22,6 @@ import type {
   InsightsSummary,
   Intention,
   Meditation,
-  MeditationStatus,
   Mood,
   UserProfile,
 } from '@/types';
@@ -44,7 +44,6 @@ interface AppStateContextValue {
   loadingLibrary: boolean;
   loadingInsights: boolean;
   submittingCheckIn: boolean;
-  generationMode: 'simulated';
   refreshLibrary: () => Promise<void>;
   refreshInsights: () => Promise<void>;
   setDisplayName: (name: string) => void;
@@ -52,11 +51,8 @@ interface AppStateContextValue {
   resetDraft: () => void;
   toggleMood: (mood: Mood) => void;
   setFocus: (focus: Intention) => void;
-  /** Persist check-in, then start local simulated generation (no fake DB meditation). */
-  submitCheckInAndStartGeneration: () => Promise<{ checkInId: string; localId: string }>;
-  updateMeditationStatus: (id: string, status: MeditationStatus) => void;
-  markMeditationReady: (id: string) => void;
-  getLocalGenerationStatus: (id: string) => MeditationStatus | undefined;
+  /** Persist the check-in. Script generation runs on the generation screen. */
+  submitCheckInAndStartGeneration: () => Promise<{ checkInId: string }>;
   toggleDownload: (id: string) => void;
   deleteMeditation: (id: string) => Promise<void>;
   setActiveMeditationId: (id?: string) => void;
@@ -90,10 +86,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
-  /** Local-only generation UI state (Phase 2 — not written to Supabase as ready). */
-  const [localGeneration, setLocalGeneration] = useState<
-    Record<string, MeditationStatus>
-  >({});
+  const submitLock = useRef(false);
 
   const refreshLibrary = useCallback(async () => {
     if (!isSupabaseConfigured() || !auth.user) {
@@ -151,7 +144,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       loadingLibrary,
       loadingInsights,
       submittingCheckIn,
-      generationMode: 'simulated',
       refreshLibrary,
       refreshInsights,
       setDisplayName: (name) => {
@@ -175,13 +167,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         })),
       setFocus: (focus) => setDraft((prev) => ({ ...prev, focus })),
       submitCheckInAndStartGeneration: async () => {
-        if (submittingCheckIn) {
+        if (submitLock.current) {
           throw new Error('Check-in already submitting');
         }
         if (!draft.focus || draft.moods.length === 0) {
           throw new Error('Complete mood and intention before continuing.');
         }
 
+        submitLock.current = true;
         setSubmittingCheckIn(true);
         try {
           await auth.ensureAnonymous();
@@ -193,24 +186,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             notes: draft.notes,
           });
 
-          const localId = `local-gen-${saved.id}`;
           setActiveCheckInId(saved.id);
-          setActiveMeditationId(localId);
-          setLocalGeneration((prev) => ({ ...prev, [localId]: 'pending' }));
+          setActiveMeditationId(undefined);
           void refreshInsights();
-          return { checkInId: saved.id, localId };
+          return { checkInId: saved.id };
         } finally {
+          submitLock.current = false;
           setSubmittingCheckIn(false);
         }
       },
-      updateMeditationStatus: (id, status) => {
-        setLocalGeneration((prev) => ({ ...prev, [id]: status }));
-      },
-      markMeditationReady: (id) => {
-        // Phase 2: generation is simulated only — do not insert fake ready rows.
-        setLocalGeneration((prev) => ({ ...prev, [id]: 'ready' }));
-      },
-      getLocalGenerationStatus: (id) => localGeneration[id],
       toggleDownload: (id) => {
         setMeditations((prev) =>
           prev.map((item) =>
@@ -237,7 +221,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       refreshLibrary,
       refreshInsights,
       auth,
-      localGeneration,
     ],
   );
 

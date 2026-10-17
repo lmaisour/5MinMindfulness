@@ -52,6 +52,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test:validation": "node scripts/validate-checkin.mjs",
+    "test:script": "node --experimental-strip-types scripts/validate-meditation-script.mjs",
     "lint": "expo lint"
   },
   "private": true

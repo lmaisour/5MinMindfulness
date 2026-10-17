@@ -18,8 +18,8 @@ export default function CheckInReviewScreen() {
     if (busy || submittingCheckIn) return;
     setBusy(true);
     try {
-      const { localId } = await submitCheckInAndStartGeneration();
-      router.replace(`/generation/${localId}`);
+      const { checkInId } = await submitCheckInAndStartGeneration();
+      router.replace(`/generation/${checkInId}`);
     } catch (error) {
       Alert.alert(
         'Could not save check-in',
@@ -34,7 +34,7 @@ export default function CheckInReviewScreen() {
     <CheckInShell
       step="review"
       question="Your moment of calm is ready to begin."
-      supporting={`We’ll create a ${MEDITATION_DURATION.label} meditation from what you’ve shared.`}
+      supporting={`We’ll write a ${MEDITATION_DURATION.label} script from what you’ve shared.`}
       footer={
         <View style={styles.footer}>
           <Button

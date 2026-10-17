@@ -18,11 +18,13 @@ Do not commit secrets. Mobile app receives only public publishable/anon keys.
 | `SUPABASE_ANON_KEY` | Injected by Supabase runtime |
 | `SUPABASE_SERVICE_ROLE_KEY` | Set via `supabase secrets set` — never ship to mobile |
 
-## OpenAI (Phase 3–4)
+## OpenAI (Phase 3A script generation)
 
-- `OPENAI_API_KEY` (backend only)
-- Model IDs for structured script generation and TTS
-- Target meditation audio: 300 seconds (acceptable 285–315); see `docs/MEDITATION_GENERATION.md`
+| Variable | Where | Notes |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | Supabase secret for `generate-meditation` | Never put this in the mobile app or in git |
+
+The function uses `gpt-4.1-mini` for structured scripts. Audio and TTS keys are not part of Phase 3A.
 
 ## Trigger.dev (Phase 3–4)
 

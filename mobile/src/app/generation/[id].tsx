@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { BreathingCircle } from '@/components/ui/BreathingCircle';
@@ -8,141 +8,164 @@ import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { APP_NAME } from '@/constants/brand';
 import { GENERATION_MESSAGES } from '@/constants/checkin';
-import { useAppState } from '@/context/AppStateContext';
-import type { MeditationStatus } from '@/types';
+import {
+  readMeditationForCheckIn,
+  requestMeditationScript,
+  type GenerationResult,
+} from '@/services/generation';
 import { colors, spacing } from '@/theme/tokens';
 
-const FLOW: MeditationStatus[] = [
-  'pending',
-  'generating_script',
-  'generating_audio',
-  'processing_audio',
-  'ready',
-];
-
 /**
- * Phase 2: generation UI is simulated locally.
- * Check-ins are persisted; fake "ready" meditations are NOT written to Supabase.
+ * Phase 3A writes a structured script. Audio is intentionally not created.
  */
 export default function GenerationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const {
-    updateMeditationStatus,
-    markMeditationReady,
-    getLocalGenerationStatus,
-    generationMode,
-  } = useAppState();
-  const [failed, setFailed] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
+  const [result, setResult] = useState<GenerationResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const status =
-    (id ? getLocalGenerationStatus(id) : undefined) ??
-    (failed ? 'failed' : FLOW[stepIndex]);
+  const generate = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      let next = await requestMeditationScript(id);
+      if (next.status === 'generating_script') {
+        for (let attempt = 0; attempt < 15 && next.status === 'generating_script'; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const saved = await readMeditationForCheckIn(id);
+          if (saved && saved.status !== 'generating_script') {
+            next = saved;
+            break;
+          }
+        }
+      }
+      if (next.status === 'generating_script') {
+        throw new Error('The script is still being written. Please try again.');
+      }
+      if (next.status === 'script_ready' && !next.script) {
+        throw new Error('The script could not be read. Please try again.');
+      }
+      setResult(next);
+    } catch (cause) {
+      setResult(null);
+      setError(cause instanceof Error ? cause.message : 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    if (!id || failed || generationMode !== 'simulated') return;
-    if (status === 'ready') return;
+    void generate();
+  }, [generate]);
 
-    const timer = setTimeout(() => {
-      const next = Math.min(stepIndex + 1, FLOW.length - 1);
-      setStepIndex(next);
-      const nextStatus = FLOW[next];
-      if (nextStatus === 'ready') {
-        markMeditationReady(id);
-      } else {
-        updateMeditationStatus(id, nextStatus);
-      }
-    }, 1600);
-
-    return () => clearTimeout(timer);
-  }, [
-    failed,
-    generationMode,
-    id,
-    markMeditationReady,
-    status,
-    stepIndex,
-    updateMeditationStatus,
-  ]);
-
-  const message = GENERATION_MESSAGES[status] ?? 'Creating your moment of calm…';
+  const scriptReady = result?.status === 'script_ready' && result.script;
+  const safety = result?.status === 'safety_support';
 
   return (
-    <Screen scroll={false} contentStyle={styles.content}>
+    <Screen scroll contentStyle={styles.content}>
       <Text variant="caption" color={colors.forestSoft} style={styles.brand}>
         {APP_NAME}
       </Text>
       <Text variant="display" color={colors.forest} align="center">
-        Creating your moment of calm…
+        {scriptReady ? result?.title || 'Your script' : 'Creating your moment of calm…'}
       </Text>
 
       <View style={styles.circleWrap}>
-        <BreathingCircle label="Calm" size={200} />
+        <BreathingCircle label="Calm" size={scriptReady ? 140 : 200} />
       </View>
 
-      <Text variant="subtitle" color={colors.charcoalMuted} align="center">
-        {message}
-      </Text>
-      <Text
-        variant="caption"
-        color={colors.charcoalMuted}
-        align="center"
-        style={styles.hint}>
-        Your check-in is saved. Audio generation is simulated in Phase 2 — real
-        meditations arrive in Phase 3.
-      </Text>
+      {loading ? (
+        <Text variant="subtitle" color={colors.charcoalMuted} align="center">
+          {GENERATION_MESSAGES.generating_script}
+        </Text>
+      ) : null}
+
+      {error ? (
+        <Text variant="subtitle" color={colors.charcoalMuted} align="center">
+          {error}
+        </Text>
+      ) : null}
+
+      {safety ? (
+        <Text variant="body" color={colors.charcoal} align="center" style={styles.preview}>
+          {result?.message}
+        </Text>
+      ) : null}
+
+      {scriptReady ? (
+        <View style={styles.preview}>
+          <Text variant="body" color={colors.charcoalMuted} align="center">
+            {GENERATION_MESSAGES.script_ready} About 5 minutes of narration. This is a script preview. Audio has not been created.
+          </Text>
+          {result.script?.sections.map((section) => (
+            <View key={section.id} style={styles.section}>
+              <Text variant="label" color={colors.forestSoft}>
+                {sectionLabel(section.id)}
+              </Text>
+              {section.blocks.map((block, index) =>
+                block.type === 'pause' ? (
+                  <Text key={`${section.id}-${index}`} variant="caption" color={colors.charcoalMuted}>
+                    {`Pause · ${block.seconds} seconds`}
+                  </Text>
+                ) : (
+                  <Text key={`${section.id}-${index}`} variant="body" color={colors.charcoal}>
+                    {block.text}
+                  </Text>
+                ),
+              )}
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {result && !scriptReady && !safety && !loading && !error ? (
+        <Text variant="body" color={colors.charcoal} align="center" style={styles.preview}>
+          {result.message ?? 'This check-in already has a meditation. Audio playback is not part of this step.'}
+        </Text>
+      ) : null}
+
+      {!result && !error ? (
+        <Text variant="caption" color={colors.charcoalMuted} align="center" style={styles.hint}>
+          Your check-in is saved. A written meditation is being prepared. Audio is not part of this step.
+        </Text>
+      ) : null}
 
       <View style={styles.actions}>
-        {failed ? (
-          <>
-            <Button
-              label="Try again"
-              onPress={() => {
-                setFailed(false);
-                setStepIndex(0);
-                if (id) updateMeditationStatus(id, 'pending');
-              }}
-            />
-            <Button
-              label="Back to Home"
-              variant="ghost"
-              onPress={() => router.replace('/(tabs)')}
-            />
-          </>
-        ) : (
-          <>
-            {status === 'ready' ? (
-              <Button
-                label="Done — go to Library"
-                onPress={() => router.replace('/(tabs)/library')}
-              />
-            ) : (
-              <Button
-                label="Continue in Library"
-                variant="secondary"
-                onPress={() => router.replace('/(tabs)/library')}
-              />
-            )}
-            <Button
-              label="Simulate failure"
-              variant="ghost"
-              onPress={() => {
-                setFailed(true);
-                if (id) updateMeditationStatus(id, 'failed');
-              }}
-            />
-          </>
-        )}
+        {error ? (
+          <Button label="Try again" onPress={() => void generate()} disabled={loading} />
+        ) : null}
+        <Button
+          label="Back to Home"
+          variant={scriptReady || safety || error ? 'secondary' : 'ghost'}
+          onPress={() => router.replace('/(tabs)')}
+        />
       </View>
     </Screen>
   );
 }
 
+function sectionLabel(id: string) {
+  switch (id) {
+    case 'arrival':
+      return 'Arrival';
+    case 'breathing':
+      return 'Breathing';
+    case 'emotional_awareness':
+      return 'Emotional Awareness';
+    case 'personalized_practice':
+      return 'Personalized Practice';
+    case 'closing':
+      return 'Closing';
+    default:
+      return id;
+  }
+}
+
 const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
-    justifyContent: 'center',
     paddingTop: spacing.xl,
   },
   brand: {
@@ -156,6 +179,15 @@ const styles = StyleSheet.create({
   hint: {
     marginTop: spacing.md,
     maxWidth: 320,
+  },
+  preview: {
+    width: '100%',
+    maxWidth: 420,
+    marginTop: spacing.md,
+    gap: spacing.md,
+  },
+  section: {
+    gap: spacing.xs,
   },
   actions: {
     width: '100%',
