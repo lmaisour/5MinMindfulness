@@ -87,6 +87,10 @@ export type Database = {
           created_at: string;
           updated_at: string;
           generation_attempts: number;
+          audio_attempts: number;
+          audio_attempted_at: string | null;
+          audio_lock_until: string | null;
+          audio_manifest: Json | null;
           completed_at: string | null;
         };
         Insert: {
@@ -103,6 +107,10 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           generation_attempts?: number;
+          audio_attempts?: number;
+          audio_attempted_at?: string | null;
+          audio_lock_until?: string | null;
+          audio_manifest?: Json | null;
           completed_at?: string | null;
         };
         Update: {
@@ -119,6 +127,10 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           generation_attempts?: number;
+          audio_attempts?: number;
+          audio_attempted_at?: string | null;
+          audio_lock_until?: string | null;
+          audio_manifest?: Json | null;
           completed_at?: string | null;
         };
         Relationships: [];

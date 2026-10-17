@@ -15,7 +15,7 @@ import { createCheckIn } from '@/services/checkins';
 import { getInsightsSummary } from '@/services/insights';
 import {
   deleteMeditation as deleteMeditationRemote,
-  listReadyMeditations,
+  listLibraryMeditations,
 } from '@/services/meditations';
 import type {
   CheckInPayload,
@@ -95,7 +95,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
     setLoadingLibrary(true);
     try {
-      const rows = await listReadyMeditations();
+      const rows = await listLibraryMeditations();
       setMeditations(rows);
     } finally {
       setLoadingLibrary(false);

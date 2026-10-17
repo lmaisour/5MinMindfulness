@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui/Text';
@@ -30,6 +31,7 @@ export function AudioControls({
   onSkip,
   tone = 'light',
 }: Props) {
+  const [trackWidth, setTrackWidth] = useState(1);
   const progress = durationSeconds > 0 ? positionSeconds / durationSeconds : 0;
   const isDark = tone === 'dark';
   const accent = isDark ? colors.ivory : colors.forest;
@@ -41,13 +43,14 @@ export function AudioControls({
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.track, { backgroundColor: track }]}>
+      <View
+        style={[styles.track, { backgroundColor: track }]}
+        onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width || 1)}>
         <View style={[styles.fill, { width: `${Math.min(progress * 100, 100)}%`, backgroundColor: fill }]} />
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={(event) => {
-            const width = event.nativeEvent.locationX;
-            const ratio = Math.max(0, Math.min(1, width / 300));
+            const ratio = Math.max(0, Math.min(1, event.nativeEvent.locationX / trackWidth));
             onSeek(ratio * durationSeconds);
           }}
           accessibilityLabel="Seek"

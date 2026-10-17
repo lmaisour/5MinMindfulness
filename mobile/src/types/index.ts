@@ -38,6 +38,7 @@ export interface CheckInPayload {
 
 export interface Meditation {
   id: string;
+  checkinId: string;
   title: string;
   intention: Intention;
   createdAt: string;

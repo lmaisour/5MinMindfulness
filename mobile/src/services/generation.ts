@@ -1,3 +1,4 @@
+import { narrationFailureMessage } from '@/constants/audioErrors';
 import { getSupabase } from '@/lib/supabase';
 import type { MeditationStatus } from '@/types';
 
@@ -12,6 +13,7 @@ export interface GenerationResult {
   title?: string | null;
   estimatedDurationSeconds?: number | null;
   message?: string;
+  errorCode?: string | null;
   script?: {
     title: string;
     sections: GeneratedScriptSection[];
@@ -19,40 +21,57 @@ export interface GenerationResult {
   };
 }
 
+export interface AudioAdvance {
+  meditationId: string;
+  status: MeditationStatus;
+  title?: string | null;
+  message?: string;
+  actualDurationSeconds?: number | null;
+  errorCode?: string;
+  completedSegments?: number;
+  totalSpeechSegments?: number;
+}
+
 export async function requestMeditationScript(checkinId: string): Promise<GenerationResult> {
+  return invokeFunction<GenerationResult>('generate-meditation', { checkinId });
+}
+
+export async function advanceMeditationAudio(meditationId: string): Promise<AudioAdvance> {
+  return invokeFunction<AudioAdvance>('generate-audio', { meditationId });
+}
+
+async function invokeFunction<T>(name: string, body: Record<string, string>): Promise<T> {
   const supabase = getSupabase();
-  const { data, error } = await supabase.functions.invoke('generate-meditation', {
-    body: { checkinId },
-  });
+  const { data, error } = await supabase.functions.invoke(name, { body });
 
   if (error) {
     const context = (error as { context?: Response }).context;
     if (context) {
-      const body = await context.json().catch(() => null);
-      if (body && typeof body.error === 'string') {
-        throw new Error(body.error);
+      const payload = await context.json().catch(() => null);
+      if (payload && typeof payload.error === 'string') {
+        throw new Error(payload.error);
       }
-      if (body && typeof body.message === 'string') {
-        throw new Error(body.message);
+      if (payload && typeof payload.message === 'string') {
+        throw new Error(payload.message);
       }
     }
     throw error;
   }
 
-  return data as GenerationResult;
+  return data as T;
 }
 
 export async function readMeditationForCheckIn(checkinId: string): Promise<GenerationResult | null> {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('meditations')
-    .select('id, status, title, script_json')
+    .select('id, status, title, script_json, error_code')
     .eq('checkin_id', checkinId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const script = data.script_json as GenerationResult['script'] | null;
-  if (data.status === 'failed') {
+  if (data.status === 'failed' && !script) {
     throw new Error('Meditation generation failed. Please try again.');
   }
   return {
@@ -60,6 +79,8 @@ export async function readMeditationForCheckIn(checkinId: string): Promise<Gener
     status: data.status,
     title: data.title,
     estimatedDurationSeconds: script?.timing?.estimatedDurationSeconds ?? null,
+    errorCode: data.error_code,
+    message: data.status === 'failed' ? narrationFailureMessage(data.error_code) : undefined,
     script: script ?? undefined,
   };
 }

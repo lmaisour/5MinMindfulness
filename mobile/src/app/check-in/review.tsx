@@ -34,7 +34,7 @@ export default function CheckInReviewScreen() {
     <CheckInShell
       step="review"
       question="Your moment of calm is ready to begin."
-      supporting={`We’ll write a ${MEDITATION_DURATION.label} script from what you’ve shared.`}
+      supporting={`We’ll prepare a ${MEDITATION_DURATION.label} meditation from what you’ve shared.`}
       footer={
         <View style={styles.footer}>
           <Button

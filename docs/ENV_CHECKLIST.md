@@ -24,13 +24,23 @@ Do not commit secrets. Mobile app receives only public publishable/anon keys.
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Supabase secret for `generate-meditation` | Never put this in the mobile app or in git |
 
-The function uses `gpt-4.1-mini` for structured scripts. Audio and TTS keys are not part of Phase 3A.
+The function uses `gpt-4.1-mini` for structured scripts.
 
-## Trigger.dev (Phase 3–4)
+## ElevenLabs (Phase 3B audio)
 
-- `TRIGGER_SECRET_KEY`
-- `TRIGGER_PROJECT_ID`
-- Worker env for FFmpeg-capable audio jobs
+| Variable | Where | Notes |
+| --- | --- | --- |
+| `ELEVENLABS_API_KEY` | Supabase secret for `generate-audio` | Required. Never put this in the mobile app or in git |
+| `ELEVENLABS_VOICE_ID` | Optional secret | Defaults to `KGZeK6FsnWQdrkDHnDNA` |
+| `ELEVENLABS_MODEL_ID` | Optional secret | Defaults to `eleven_multilingual_v2` |
+| `ELEVENLABS_OUTPUT_FORMAT` | Optional secret | Defaults to `wav_24000` |
+| `ELEVENLABS_STABILITY` | Optional secret | Default `0.7` |
+| `ELEVENLABS_SIMILARITY_BOOST` | Optional secret | Default `0.75` |
+| `ELEVENLABS_STYLE` | Optional secret | Default `0` |
+| `ELEVENLABS_SPEED` | Optional secret | Default `0.9`, clamped to `0.7`–`1.0` |
+| `ELEVENLABS_SPEAKER_BOOST` | Optional secret | Default on. Set `false` to disable |
+
+Narration is assembled in the Edge Function. FFmpeg is not required.
 
 ## Analytics & monitoring (Phase 7)
 

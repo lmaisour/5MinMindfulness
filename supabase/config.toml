@@ -18,3 +18,6 @@ verify_jwt = true
 
 [functions.generate-meditation]
 verify_jwt = true
+
+[functions.generate-audio]
+verify_jwt = true

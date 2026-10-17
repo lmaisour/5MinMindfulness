@@ -285,6 +285,13 @@ assert(
 );
 assert(claimDecision({ status: 'failed', createdAt: new Date().toISOString(), hasScript: false }, Date.now()) === 'retry', 'failed row retries');
 assert(
+  claimDecision(
+    { status: 'failed', createdAt: new Date().toISOString(), hasScript: true, audioAttempted: true },
+    Date.now(),
+  ) === 'leave_existing',
+  'a failed narration keeps the saved script',
+);
+assert(
   claimDecision({ status: 'ready', createdAt: new Date().toISOString(), hasScript: true }, Date.now()) === 'leave_existing',
   'ready audio is not regenerated',
 );

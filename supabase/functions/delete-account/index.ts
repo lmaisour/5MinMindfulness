@@ -52,17 +52,24 @@ Deno.serve(async (req) => {
     await admin.from('user_preferences').delete().eq('user_id', userId);
     await admin.from('profiles').delete().eq('id', userId);
 
-    // Optional: remove private storage objects for this user if a bucket exists.
+    // Private narration files live under the user's folder, including segment subfolders.
     try {
       const bucket = 'meditation-audio';
-      const { data: files } = await admin.storage.from(bucket).list(userId);
-      if (files?.length) {
-        await admin.storage
-          .from(bucket)
-          .remove(files.map((file) => `${userId}/${file.name}`));
+      const { data: entries } = await admin.storage.from(bucket).list(userId, { limit: 1000 });
+      const paths: string[] = [];
+      for (const entry of entries ?? []) {
+        if (entry.id) {
+          paths.push(`${userId}/${entry.name}`);
+          continue;
+        }
+        const nested = await admin.storage.from(bucket).list(`${userId}/${entry.name}/segments`, { limit: 100 });
+        for (const file of nested.data ?? []) {
+          if (file.name) paths.push(`${userId}/${entry.name}/segments/${file.name}`);
+        }
       }
+      if (paths.length > 0) await admin.storage.from(bucket).remove(paths);
     } catch {
-      // Storage may not exist until Phase 4 — ignore.
+      // A missing bucket should not block account deletion.
     }
 
     const { error: deleteError } = await admin.auth.admin.deleteUser(userId);

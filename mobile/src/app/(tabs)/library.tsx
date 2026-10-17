@@ -41,7 +41,7 @@ export default function LibraryScreen() {
       ) : meditations.length === 0 ? (
         <EmptyState
           title="No meditations yet"
-          body="Your check-ins are saved. Audio meditations will appear here after narration is produced."
+          body="Your check-ins are saved. Finished meditations stay here so you can play them again."
           actionLabel="Begin Check-In"
           onAction={() => {
             resetDraft();
@@ -52,7 +52,11 @@ export default function LibraryScreen() {
         meditations.map((meditation) => (
           <View key={meditation.id} style={styles.item}>
             <Pressable
-              onPress={() => router.push(`/player/${meditation.id}`)}
+              onPress={() =>
+                meditation.status === 'ready'
+                  ? router.push(`/player/${meditation.id}`)
+                  : router.push(`/generation/${meditation.checkinId}`)
+              }
               style={styles.main}>
               <Text variant="bodyStrong" color={colors.forest}>
                 {meditation.title}
@@ -65,23 +69,25 @@ export default function LibraryScreen() {
                 · {meditation.intention}
               </Text>
               <Text variant="caption" color={colors.sage}>
-                {meditation.downloaded ? 'Downloaded' : 'Stream ready'}
+                {libraryStatus(meditation.status, meditation.downloaded)}
               </Text>
             </Pressable>
 
             <View style={styles.actions}>
-              <Pressable
-                accessibilityLabel={
-                  meditation.downloaded ? 'Remove download' : 'Download'
-                }
-                onPress={() => toggleDownload(meditation.id)}
-                style={styles.iconButton}>
-                <Ionicons
-                  name={meditation.downloaded ? 'cloud-done' : 'cloud-download-outline'}
-                  size={20}
-                  color={colors.forest}
-                />
-              </Pressable>
+              {meditation.status === 'ready' ? (
+                <Pressable
+                  accessibilityLabel={
+                    meditation.downloaded ? 'Remove download' : 'Download'
+                  }
+                  onPress={() => toggleDownload(meditation.id)}
+                  style={styles.iconButton}>
+                  <Ionicons
+                    name={meditation.downloaded ? 'cloud-done' : 'cloud-download-outline'}
+                    size={20}
+                    color={colors.forest}
+                  />
+                </Pressable>
+              ) : null}
               <Pressable
                 accessibilityLabel="Delete meditation"
                 onPress={() =>
@@ -107,6 +113,14 @@ export default function LibraryScreen() {
       )}
     </Screen>
   );
+}
+
+function libraryStatus(status: string, downloaded: boolean) {
+  if (status === 'script_ready' || status === 'generating_audio' || status === 'processing_audio') {
+    return 'Tap to prepare audio';
+  }
+  if (status === 'failed') return 'Tap to try again';
+  return downloaded ? 'Downloaded' : 'Ready to replay';
 }
 
 const styles = StyleSheet.create({
