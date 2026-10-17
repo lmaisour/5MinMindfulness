@@ -15,7 +15,7 @@ Audio generation must:
 - Produce structured narration with intentional pauses
 - Insert actual silence between segments (not one long trailing pause)
 - Verify measured audio duration against the acceptable range
-- Adjust script or pacing and regenerate as needed when out of range
+- Leave the meditation unready when the measured file is outside that window. Do not pad it with extra silence or speed the narration up.
 
 ## Approximate meditation structure
 
@@ -83,9 +83,43 @@ supabase functions deploy generate-meditation --use-api
 
 Model: `gpt-4.1-mini`. A typical script is about 1,500 input tokens and 1,200 output tokens. At $0.40 per million input tokens and $1.60 per million output tokens, one accepted script is about $0.0025. One validation retry is about $0.005.
 
-## Phase 3B — audio, not started
+## Phase 3B — ElevenLabs narration
 
-No text-to-speech provider is selected. `mobile/src/services/tts/types.ts` is the seam for a later provider. Phase 3B should render the same saved scripts through more than one provider and compare warmth, pacing, pronunciation, and cost before choosing one. Do not mark a meditation `ready` until that audio exists and its measured length is inside 285–315 seconds.
+`generate-audio` turns a saved `script_ready` script into one continuous WAV. It does not call the script model again. The provider is ElevenLabs, model `eleven_multilingual_v2`, default voice `KGZeK6FsnWQdrkDHnDNA`. Output is `wav_24000` so pauses can be exact silence and the duration is the sample count divided by the sample rate. PCM or WAV at 44.1 kHz needs an ElevenLabs Pro plan, so that format is not the default.
+
+Speech stays in section order. Pauses of 3 seconds or less, and at most two of them, are `<break>` tags inside a section-sized request. Longer pauses are inserted as silent samples between those requests. `previous_text` and `next_text` keep the voice continuous across a split. Voice settings default to stability 0.7, similarity 0.75, style 0, speaker boost on, and speed 0.9. Speed is clamped to 0.7–1.0. Override them with Edge Function secrets if a listen shows the pace or tone should change:
+
+- `ELEVENLABS_API_KEY` (required)
+- `ELEVENLABS_VOICE_ID`
+- `ELEVENLABS_MODEL_ID`
+- `ELEVENLABS_OUTPUT_FORMAT` (`wav_8000`, `wav_16000`, `wav_22050`, `wav_24000`, or `wav_32000`)
+- `ELEVENLABS_STABILITY`
+- `ELEVENLABS_SIMILARITY_BOOST`
+- `ELEVENLABS_STYLE`
+- `ELEVENLABS_SPEED`
+- `ELEVENLABS_SPEAKER_BOOST`
+
+A user’s `preferred_voice`, when it is a voice id, replaces the default voice.
+
+Each invocation narrates one missing speech segment or, when every segment is stored, assembles the file. The phone calls again until the status is `ready` or `failed`. A lock column stops a second request from starting another ElevenLabs call. Completed segments are kept, so a retry does not pay for audio that already exists. A measured duration outside 285–315 seconds sets `failed` / `duration_out_of_range` and does not upload the final file or set `ready`. The same settings do not record that script again.
+
+Limits: 3 audio attempts per meditation, 4 new attempts per hour, and 10 per day. Resuming an interrupted attempt does not count as a new one. Costs and failures are written to `audio_generation_events` with character counts only. Journal notes are not stored there.
+
+Audio is uploaded to the private `meditation-audio` bucket at `{user_id}/{meditation_id}.wav`. Storage policies allow an authenticated user to read, write, and delete only that user’s folder. The player uses a one-hour signed URL. Deleting a meditation or the account removes the file.
+
+The generation screen starts narration after the script is ready and opens the player only when the file is ready. Library replays `ready` rows and resumes an interrupted narration. Playback uses expo-audio with silent-mode and background playback, plus lock-screen controls. The expo-audio config plugin already enables the iOS audio background mode.
+
+Multilingual v2 is $0.08 per 1,000 characters on the ElevenLabs API price list. A five-minute script is about 3,500–5,000 characters of narration, so one new recording is about $0.28–$0.40. Replaying a stored file costs nothing. Flash or Turbo is about half that price and was not selected, because narration quality matters more here.
+
+Deploy:
+
+```bash
+supabase db push
+supabase secrets set ELEVENLABS_API_KEY=YOUR_KEY
+supabase functions deploy generate-audio --use-api
+```
+
+Do not put `ELEVENLABS_API_KEY` in the mobile app. Changing a voice secret does not affect a meditation that is already `ready`.
 
 ## Structured output
 

@@ -559,6 +559,8 @@ export type ExistingMeditation = {
   createdAt: string;
   updatedAt?: string | null;
   hasScript: boolean;
+  /** True once narration has been claimed, so a failed audio job can reuse the script. */
+  audioAttempted?: boolean;
 };
 
 const AUDIO_PIPELINE_STATUSES = new Set(['ready', 'generating_audio', 'processing_audio']);
@@ -569,6 +571,7 @@ export function claimDecision(
 ): 'create' | 'return_script' | 'in_progress' | 'retry' | 'leave_existing' {
   if (!existing) return 'create';
   if (AUDIO_PIPELINE_STATUSES.has(existing.status)) return 'leave_existing';
+  if (existing.status === 'failed' && existing.hasScript && existing.audioAttempted) return 'leave_existing';
   if (existing.status === 'script_ready' && existing.hasScript) return 'return_script';
   if (existing.status === 'generating_script') {
     const stamp = existing.updatedAt || existing.createdAt;

@@ -1,6 +1,6 @@
 /**
- * Phase 3B will implement this interface for one or more providers.
- * Scripts stay plain speech and pause blocks so no provider is assumed.
+ * Narration is produced on the server. Scripts stay plain speech and pause blocks.
+ * ElevenLabs settings live in the generate-audio Edge Function, not in the app.
  */
 
 export interface TtsVoiceOptions {

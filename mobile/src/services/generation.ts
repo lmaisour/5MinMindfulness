@@ -19,27 +19,44 @@ export interface GenerationResult {
   };
 }
 
+export interface AudioAdvance {
+  meditationId: string;
+  status: MeditationStatus;
+  title?: string | null;
+  message?: string;
+  actualDurationSeconds?: number | null;
+  errorCode?: string;
+  completedSegments?: number;
+  totalSpeechSegments?: number;
+}
+
 export async function requestMeditationScript(checkinId: string): Promise<GenerationResult> {
+  return invokeFunction<GenerationResult>('generate-meditation', { checkinId });
+}
+
+export async function advanceMeditationAudio(meditationId: string): Promise<AudioAdvance> {
+  return invokeFunction<AudioAdvance>('generate-audio', { meditationId });
+}
+
+async function invokeFunction<T>(name: string, body: Record<string, string>): Promise<T> {
   const supabase = getSupabase();
-  const { data, error } = await supabase.functions.invoke('generate-meditation', {
-    body: { checkinId },
-  });
+  const { data, error } = await supabase.functions.invoke(name, { body });
 
   if (error) {
     const context = (error as { context?: Response }).context;
     if (context) {
-      const body = await context.json().catch(() => null);
-      if (body && typeof body.error === 'string') {
-        throw new Error(body.error);
+      const payload = await context.json().catch(() => null);
+      if (payload && typeof payload.error === 'string') {
+        throw new Error(payload.error);
       }
-      if (body && typeof body.message === 'string') {
-        throw new Error(body.message);
+      if (payload && typeof payload.message === 'string') {
+        throw new Error(payload.message);
       }
     }
     throw error;
   }
 
-  return data as GenerationResult;
+  return data as T;
 }
 
 export async function readMeditationForCheckIn(checkinId: string): Promise<GenerationResult | null> {

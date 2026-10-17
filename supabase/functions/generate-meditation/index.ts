@@ -88,7 +88,9 @@ Deno.serve(async (req) => {
 
     const existingResult = await supabase
       .from('meditations')
-      .select('id, status, script_json, title, created_at, updated_at, generation_attempts')
+      .select(
+        'id, status, script_json, title, created_at, updated_at, generation_attempts, audio_attempts',
+      )
       .eq('checkin_id', checkinId)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -107,7 +109,11 @@ Deno.serve(async (req) => {
         {
           meditationId: existingResult.data.id,
           status: existingResult.data.status,
-          message: 'This check-in already has a meditation. Audio playback is not part of this step.',
+          title: existingResult.data.title,
+          message:
+            existingResult.data.status === 'ready'
+              ? 'Your meditation is ready.'
+              : 'Narration uses the saved script.',
         },
         200,
       );
@@ -262,6 +268,7 @@ type MeditationRow = {
   created_at: string;
   updated_at: string | null;
   generation_attempts: number | null;
+  audio_attempts: number | null;
 };
 
 function toExisting(row: MeditationRow | null) {
@@ -271,6 +278,7 @@ function toExisting(row: MeditationRow | null) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     hasScript: row.script_json != null,
+    audioAttempted: (row.audio_attempts ?? 0) > 0,
   };
 }
 

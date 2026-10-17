@@ -43,7 +43,7 @@ export const GENERATION_MESSAGES: Record<string, string> = {
   generating_script: 'Reflecting on how you’re feeling…',
   generating_audio: 'Preparing your personalized guidance…',
   processing_audio: 'Bringing your meditation to life…',
-  script_ready: 'Your script is ready. Audio comes later.',
+  script_ready: 'Your script is ready. Preparing the narration…',
   ready: 'Your meditation is ready.',
   failed: 'Something interrupted the process.',
 };
