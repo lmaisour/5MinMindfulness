@@ -41,7 +41,7 @@ export default function LibraryScreen() {
       ) : meditations.length === 0 ? (
         <EmptyState
           title="No meditations yet"
-          body="Your check-ins are saved. Generated audio meditations will appear here in Phase 3."
+          body="Your check-ins are saved. Audio meditations will appear here after narration is produced."
           actionLabel="Begin Check-In"
           onAction={() => {
             resetDraft();

@@ -19,6 +19,7 @@ export type Intention =
 export type MeditationStatus =
   | 'pending'
   | 'generating_script'
+  | 'script_ready'
   | 'generating_audio'
   | 'processing_audio'
   | 'ready'
