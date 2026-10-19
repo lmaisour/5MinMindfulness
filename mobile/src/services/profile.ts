@@ -41,6 +41,7 @@ export async function updatePreferences(
   patch: {
     personalization_enabled?: boolean;
     notifications_enabled?: boolean;
+    reminder_local_time?: string;
     preferred_voice?: string | null;
   },
 ) {

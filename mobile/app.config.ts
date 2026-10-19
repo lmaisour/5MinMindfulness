@@ -52,6 +52,13 @@ const config: ExpoConfig = {
     'expo-sqlite',
     'expo-apple-authentication',
     'expo-web-browser',
+    [
+      'expo-notifications',
+      {
+        enableBackgroundRemoteNotifications: false,
+      },
+    ],
+    '@react-native-community/datetimepicker',
   ],
   experiments: {
     typedRoutes: true,
