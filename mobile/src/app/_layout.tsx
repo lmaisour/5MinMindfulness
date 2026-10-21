@@ -8,19 +8,55 @@ import {
   Literata_600SemiBold,
   useFonts as useLiterata,
 } from '@expo-google-fonts/literata';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppStateProvider } from '@/context/AppStateContext';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { installNotificationHandler } from '@/services/reminderNotifications';
+import { homeRouteFromNotification } from '@/services/reminderPlan';
 import { colors } from '@/theme/tokens';
+
+installNotificationHandler();
 
 SplashScreen.preventAutoHideAsync();
 
+function useReminderHomeLink() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let active = true;
+
+    const openHome = (data: unknown) => {
+      if (!homeRouteFromNotification(data)) return;
+      router.replace('/(tabs)');
+      void Notifications.clearLastNotificationResponseAsync();
+    };
+
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!active || !response) return;
+      openHome(response.notification.request.content.data);
+    });
+
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      openHome(response.notification.request.content.data);
+    });
+
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [router]);
+}
+
 export default function RootLayout() {
+  useReminderHomeLink();
   const [dmLoaded] = useDMSans({
     DMSans_400Regular,
     DMSans_500Medium,

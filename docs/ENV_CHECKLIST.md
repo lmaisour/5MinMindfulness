@@ -53,3 +53,4 @@ Narration is assembled in the Edge Function. FFmpeg is not required.
 - Apple Developer / Google Play credentials for production builds
 - Sign in with Apple capability
 - Google OAuth client IDs
+- Daily reminders use a local `expo-notifications` schedule. Adding that native module requires a new iOS development build. No remote push token or notification campaign is used.

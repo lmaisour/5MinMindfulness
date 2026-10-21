@@ -169,6 +169,7 @@ export type Database = {
           preferred_voice: string | null;
           personalization_enabled: boolean;
           notifications_enabled: boolean;
+          reminder_local_time: string;
           created_at: string;
           updated_at: string;
         };
@@ -178,6 +179,7 @@ export type Database = {
           preferred_voice?: string | null;
           personalization_enabled?: boolean;
           notifications_enabled?: boolean;
+          reminder_local_time?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -187,6 +189,7 @@ export type Database = {
           preferred_voice?: string | null;
           personalization_enabled?: boolean;
           notifications_enabled?: boolean;
+          reminder_local_time?: string;
           created_at?: string;
           updated_at?: string;
         };

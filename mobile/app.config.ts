@@ -52,12 +52,26 @@ const config: ExpoConfig = {
     'expo-sqlite',
     'expo-apple-authentication',
     'expo-web-browser',
+    // Keep this before expo-notifications. Expo runs the last entitlements
+    // mod first, so this plugin deletes aps-environment after notifications adds it.
+    './plugins/withoutRemotePushEntitlement',
+    [
+      'expo-notifications',
+      {
+        // Skips UIBackgroundModes remote-notification. SDK 57 still adds aps-environment.
+        enableBackgroundRemoteNotifications: false,
+      },
+    ],
+    '@react-native-community/datetimepicker',
   ],
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
   },
   extra: {
+    eas: {
+      projectId: 'bb535cdf-7d53-4640-8310-cbff5647fc24',
+    },
     EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
     EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??

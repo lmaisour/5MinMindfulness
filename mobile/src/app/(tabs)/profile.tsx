@@ -1,12 +1,14 @@
 import { useRouter } from 'expo-router';
-import { Alert, Switch, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Switch, StyleSheet, View } from 'react-native';
 
+import { ReminderTimePicker } from '@/components/profile/ReminderTimePicker';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Text } from '@/components/ui/Text';
 import { APP_NAME } from '@/constants/brand';
 import { useAuth } from '@/providers/AuthProvider';
+import { formatReminderTime, SETTINGS_INSTRUCTIONS } from '@/services/reminderPlan';
 import { colors, radii, spacing } from '@/theme/tokens';
 
 export default function ProfileScreen() {
@@ -91,13 +93,77 @@ export default function ProfileScreen() {
           onChange={(value) => void auth.setPersonalizationEnabled(value)}
           disabled={!auth.user}
         />
+      </View>
+
+      <View style={styles.panel}>
+        <Text variant="bodyStrong" color={colors.forest}>
+          Notifications
+        </Text>
         <Row
-          title="Reminders"
-          body="Occasional gentle reminders."
+          title="Daily Reminder"
+          body={
+            auth.notificationsEnabled
+              ? `One calm reminder each day at ${formatReminderTime(auth.reminderTime)}.`
+              : `Off until you turn it on. The time is ${formatReminderTime(auth.reminderTime)}.`
+          }
           value={auth.notificationsEnabled}
-          onChange={(value) => void auth.setNotificationsEnabled(value)}
+          onChange={(value) =>
+            void auth.setDailyReminderEnabled(value).catch((error: unknown) =>
+              Alert.alert(
+                'Reminder not saved',
+                error instanceof Error ? error.message : 'Please try again.',
+              ),
+            )
+          }
           disabled={!auth.user}
         />
+        {auth.user ? (
+          <ReminderTimePicker
+            time={auth.reminderTime}
+            disabled={!auth.user}
+            onChange={(time) =>
+              auth.setDailyReminderTime(time).catch((error: unknown) =>
+                Alert.alert(
+                  'Reminder time not saved',
+                  error instanceof Error ? error.message : 'Please try again.',
+                ),
+              )
+            }
+          />
+        ) : null}
+        {auth.reminderNotice === 'show-settings' ? (
+          <View style={styles.notice}>
+            <Text variant="caption" color={colors.charcoalMuted}>
+              {SETTINGS_INSTRUCTIONS}
+            </Text>
+            <Button
+              label="Open iOS Settings"
+              variant="secondary"
+              onPress={() => void Linking.openSettings()}
+              style={styles.noticeButton}
+            />
+          </View>
+        ) : null}
+        {auth.reminderNotice === 'needs-permission' ? (
+          <View style={styles.notice}>
+            <Text variant="caption" color={colors.charcoalMuted}>
+              Allow notifications on this iPhone to schedule the daily reminder.
+            </Text>
+            <Button
+              label="Allow notifications"
+              variant="secondary"
+              onPress={() =>
+                void auth.setDailyReminderEnabled(true).catch((error: unknown) =>
+                  Alert.alert(
+                    'Reminder not saved',
+                    error instanceof Error ? error.message : 'Please try again.',
+                  ),
+                )
+              }
+              style={styles.noticeButton}
+            />
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.panel}>
@@ -180,5 +246,12 @@ const styles = StyleSheet.create({
   privacy: {
     marginTop: spacing.sm,
     marginBottom: spacing.md,
+  },
+  notice: {
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  noticeButton: {
+    marginBottom: spacing.xs,
   },
 });
