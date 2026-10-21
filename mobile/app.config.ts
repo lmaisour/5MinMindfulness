@@ -52,9 +52,13 @@ const config: ExpoConfig = {
     'expo-sqlite',
     'expo-apple-authentication',
     'expo-web-browser',
+    // Keep this before expo-notifications. Expo runs the last entitlements
+    // mod first, so this plugin deletes aps-environment after notifications adds it.
+    './plugins/withoutRemotePushEntitlement',
     [
       'expo-notifications',
       {
+        // Skips UIBackgroundModes remote-notification. SDK 57 still adds aps-environment.
         enableBackgroundRemoteNotifications: false,
       },
     ],
